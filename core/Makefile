@@ -4,6 +4,8 @@
 # intermedites-dir-for
 LOCAL_PATH := $(BUILD_SYSTEM)
 
+SHRP_BUILD_DIR := out/shrp
+
 # Pick a reasonable string to use to identify files.
 ifneq "" "$(filter eng.%,$(BUILD_NUMBER))"
   # BUILD_NUMBER has a timestamp in it, which means that
@@ -1028,6 +1030,11 @@ ifeq ($(strip $(BOARD_KERNEL_SEPARATED_DT)),true)
   RECOVERYIMAGE_EXTRA_DEPS    := $(INSTALLED_DTIMAGE_TARGET)
 endif
 
+SHRPSCRIPT := $(TOPDIR)build/shrp/shrp.sh
+ifeq ($(SHRP_AB),true)
+  SHRPSCRIPT := $(TOPDIR)build/shrp/shrp_ab.sh
+endif
+
 # Keys authorized to sign OTA packages this build will accept.  The
 # build always uses dev-keys for this; release packaging tools will
 # substitute other keys for this one.
@@ -1055,6 +1062,7 @@ define build-recoveryramdisk
   @echo ----- Making recovery ramdisk ------
   $(hide) mkdir -p $(TARGET_RECOVERY_OUT)
   $(hide) mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/etc $(TARGET_RECOVERY_ROOT_OUT)/sdcard $(TARGET_RECOVERY_ROOT_OUT)/tmp
+  $(hide) mkdir -p $(PRODUCT_OUT)/zip/Files/SHRP/data
   @echo Copying baseline ramdisk...
   $(hide) rsync -a --exclude=etc --exclude=sdcard --exclude=vendor $(IGNORE_CACHE_LINK) $(TARGET_ROOT_OUT) $(TARGET_RECOVERY_OUT) # "cp -Rf" fails to overwrite broken symlinks on Mac.
   @echo Modifying ramdisk contents...
@@ -1080,6 +1088,16 @@ define build-recoveryramdisk
   $(hide) cp $(RECOVERY_INSTALL_OTA_KEYS) $(TARGET_RECOVERY_ROOT_OUT)/res/keys
   $(hide) cat $(INSTALLED_DEFAULT_PROP_TARGET) $(recovery_build_prop) \
           > $(TARGET_RECOVERY_ROOT_OUT)/default.prop
+
+### SHRP - STARTING BUILD ###
+    mkdir -p $(TOPDIR)$(SHRP_BUILD_DIR)
+    echo '$(SHRP_MAINTAINER) ' > $(TOPDIR)$(SHRP_BUILD_DIR)/variables
+    echo '$(SHRP_DEVICE_CODE) ' >> $(TOPDIR)$(SHRP_BUILD_DIR)/variables
+    echo '$(SHRP_REC)' >> $(TOPDIR)$(SHRP_BUILD_DIR)/variables
+    echo '$(SHRP_AB) ' > $(TOPDIR)$(SHRP_BUILD_DIR)/ab
+    $(hide) bash $(SHRPSCRIPT)
+### SHRP - END BUILD ###
+
   $(BOARD_RECOVERY_IMAGE_PREPARE)
   $(if $(filter true,$(BOARD_BUILD_SYSTEM_ROOT_IMAGE)), \
     $(hide) mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/system_root; \
@@ -1200,6 +1218,18 @@ endif
 
 .PHONY: recoveryimage
 recoveryimage: $(INSTALLED_RECOVERYIMAGE_TARGET) $(RECOVERY_RESOURCE_ZIP)
+	$(BASH) $(SHRP_SCRIPT)
+	@echo -e ${CL_CYN} ""
+	@echo -e ${CL_CYN} "                                                  "
+	@echo -e ${CL_CYN} "   __ __ __  _ __ _  __ _                         "
+	@echo -e ${CL_CYN} "  / _ _// / / / __ \/ __ \                        "
+	@echo -e ${CL_CYN} "  \__ \/ /_/ / /_/ / /_/ /                        "
+	@echo -e ${CL_CYN} " ___/ / __  / _, _/ ____/                         "
+	@echo -e ${CL_CYN} "/__ _/_/ /_/_/ |_/_/                              "
+	@echo -e ${CL_CYN} ""
+	@echo -e ${CL_CYN} ""
+	@echo -e ${CL_CYN} "" ${CL_CYN}
+	@echo -e ${CL_GRN} "-----------SHRP Recovery Build Complete-----------"${CL_GRN}
 
 ifneq ($(BOARD_NAND_PAGE_SIZE),)
 mkyaffs2_extra_flags := -c $(BOARD_NAND_PAGE_SIZE)
