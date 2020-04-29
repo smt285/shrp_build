@@ -1090,12 +1090,12 @@ define build-recoveryramdisk
           > $(TARGET_RECOVERY_ROOT_OUT)/default.prop
 
 ### SHRP - STARTING BUILD ###
-    mkdir -p $(TOPDIR)$(SHRP_BUILD_DIR)
-    echo '$(SHRP_MAINTAINER) ' > $(TOPDIR)$(SHRP_BUILD_DIR)/variables
-    echo '$(SHRP_DEVICE_CODE) ' >> $(TOPDIR)$(SHRP_BUILD_DIR)/variables
-    echo '$(SHRP_REC)' >> $(TOPDIR)$(SHRP_BUILD_DIR)/variables
-    echo '$(SHRP_AB) ' > $(TOPDIR)$(SHRP_BUILD_DIR)/ab
-    $(hide) bash $(SHRPSCRIPT)
+    test "$(PRODUCT_IDENT)" == "shrp" && mkdir -p $(TOPDIR)$(SHRP_BUILD_DIR) || true
+    test "$(PRODUCT_IDENT)" == "shrp" && echo '$(SHRP_MAINTAINER) ' > $(TOPDIR)$(SHRP_BUILD_DIR)/variables || true
+    test "$(PRODUCT_IDENT)" == "shrp" && echo '$(SHRP_DEVICE_CODE) ' >> $(TOPDIR)$(SHRP_BUILD_DIR)/variables || true
+    test "$(PRODUCT_IDENT)" == "shrp" && echo '$(SHRP_REC)' >> $(TOPDIR)$(SHRP_BUILD_DIR)/variables || true
+    test "$(PRODUCT_IDENT)" == "shrp" && echo '$(SHRP_AB) ' > $(TOPDIR)$(SHRP_BUILD_DIR)/ab || true
+    $(hide) test "$(PRODUCT_IDENT)" == "shrp" && bash $(SHRPSCRIPT) || true
 ### SHRP - END BUILD ###
 
   $(BOARD_RECOVERY_IMAGE_PREPARE)
@@ -1217,6 +1217,7 @@ RECOVERY_RESOURCE_ZIP :=
 endif
 
 .PHONY: recoveryimage
+ifneq ($(filter shrp, $(PRODUCT_IDENT)),)
 recoveryimage: $(INSTALLED_RECOVERYIMAGE_TARGET) $(RECOVERY_RESOURCE_ZIP)
 	$(BASH) $(SHRP_SCRIPT)
 	@echo -e ${CL_CYN} ""
@@ -1230,6 +1231,9 @@ recoveryimage: $(INSTALLED_RECOVERYIMAGE_TARGET) $(RECOVERY_RESOURCE_ZIP)
 	@echo -e ${CL_CYN} ""
 	@echo -e ${CL_CYN} "" ${CL_CYN}
 	@echo -e ${CL_GRN} "-----------SHRP Recovery Build Complete-----------"${CL_GRN}
+else
+recoveryimage: $(INSTALLED_RECOVERYIMAGE_TARGET) $(RECOVERY_RESOURCE_ZIP)
+endif
 
 ifneq ($(BOARD_NAND_PAGE_SIZE),)
 mkyaffs2_extra_flags := -c $(BOARD_NAND_PAGE_SIZE)
