@@ -21,13 +21,15 @@ dir="$(pwd)"
 #
 # Run shrp env variables from here
 #
-SHRP_MAINTAINER=$(sed -n '1p' "$(pwd)/build/shrp/variables")
-SHRP_DEVICE=$(sed -n '2p' "$(pwd)/build/shrp/variables")
-SHRP_OFFICIAL=$(sed -n '3p' "$(pwd)/build/shrp/variables")
-SHRP_EXPRESS=$(sed -n '4p' "$(pwd)/build/shrp/variables")
-SHRP_REC=$(sed -n '5p' "$(pwd)/build/shrp/variables")
+SHRP_BUILD_DIR=out/shrp
 
-cat > "${dir}"/build/shrp/shrp_info.json <<EOF
+SHRP_MAINTAINER=$(sed -n '1p' "$(pwd)/${SHRP_BUILD_DIR}/variables")
+SHRP_DEVICE=$(sed -n '2p' "$(pwd)/${SHRP_BUILD_DIR}/variables")
+SHRP_OFFICIAL=$(sed -n '3p' "$(pwd)/${SHRP_BUILD_DIR}/variables")
+SHRP_EXPRESS=$(sed -n '4p' "$(pwd)/${SHRP_BUILD_DIR}/variables")
+SHRP_REC=$(sed -n '5p' "$(pwd)/${SHRP_BUILD_DIR}/variables")
+
+cat > "${dir}"/${SHRP_BUILD_DIR}/shrp_info.json <<EOF
 [
 	{
 	"codeName": "$SHRP_DEVICE",
@@ -39,7 +41,7 @@ cat > "${dir}"/build/shrp/shrp_info.json <<EOF
 ]
 EOF
 
-cat > "${dir}"/build/shrp/updater-script <<EOF
+cat > "${dir}"/${SHRP_BUILD_DIR}/updater-script <<EOF
 show_progress(1.000000, 0);
 ui_print("             ");
 ui_print("Skyhawk Recovery Project                  ");
