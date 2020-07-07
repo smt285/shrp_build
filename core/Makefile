@@ -1585,6 +1585,7 @@ RECOVERY_RESOURCE_ZIP :=
 endif
 
 .PHONY: recoveryimage
+ifneq ($(filter shrp, $(PRODUCT_IDENT)),)
 recoveryimage: $(INSTALLED_RECOVERYIMAGE_TARGET) $(RECOVERY_RESOURCE_ZIP)
 	$(BASH) $(SHRP_SCRIPT)
 	@echo -e ${CL_CYN} ""
@@ -1598,6 +1599,9 @@ recoveryimage: $(INSTALLED_RECOVERYIMAGE_TARGET) $(RECOVERY_RESOURCE_ZIP)
 	@echo -e ${CL_CYN} ""
 	@echo -e ${CL_CYN} "" ${CL_CYN}
 	@echo -e ${CL_GRN} "-----------SHRP Recovery Build Complete-----------"${CL_GRN}
+else
+recoveryimage: $(INSTALLED_RECOVERYIMAGE_TARGET) $(RECOVERY_RESOURCE_ZIP)
+endif
 
 ifneq ($(BOARD_NAND_PAGE_SIZE),)
 $(error MTD device is no longer supported and thus BOARD_NAND_PAGE_SIZE is deprecated.)
