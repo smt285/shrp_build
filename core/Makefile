@@ -1091,6 +1091,7 @@ define build-recoveryramdisk
 
 ### SHRP - STARTING BUILD ###
     mkdir -p $(SHRP_BUILD_DIR)
+    export SHRP_BUILD_DATE=$(date -u +%H%M%d%m%Y)
     test "$(PRODUCT_IDENT)" == "shrp" && echo '$(SHRP_MAINTAINER) ' > $(SHRP_BUILD_DIR)/variables
     test "$(PRODUCT_IDENT)" == "shrp" && echo '$(SHRP_DEVICE_CODE) ' >> $(SHRP_BUILD_DIR)/variables
     test "$(PRODUCT_IDENT)" == "shrp" && echo '$(SHRP_OFFICIAL) ' >> $(SHRP_BUILD_DIR)/variables
