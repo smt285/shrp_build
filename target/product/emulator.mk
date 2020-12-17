@@ -18,49 +18,53 @@
 # emulator-related modules to PRODUCT_PACKAGES.
 #
 
+# Host modules
+PRODUCT_PACKAGES += \
+
+
 # Device modules
 PRODUCT_PACKAGES += \
+    egl.cfg \
+    gralloc.goldfish \
+    gralloc.ranchu \
+    libGLESv1_CM_emulation \
+    lib_renderControl_enc \
+    libEGL_emulation \
     libGLES_android \
-    vintf \
-    CarrierConfig \
+    libGLESv2_enc \
+    libOpenglSystemCommon \
+    libGLESv2_emulation \
+    libGLESv1_enc \
+    qemu-props \
+    qemud \
+    camera.goldfish \
+    camera.goldfish.jpeg \
+    camera.ranchu \
+    camera.ranchu.jpeg \
+    lights.goldfish \
+    gps.goldfish \
+    gps.ranchu \
+    fingerprint.goldfish \
+    sensors.goldfish \
+    audio.primary.goldfish \
+    vibrator.goldfish \
+    power.goldfish \
+    fingerprint.ranchu \
+    fingerprintd \
+    sensors.ranchu \
+    e2fsck
 
-# need this for gles libraries to load properly
-# after moving to /vendor/lib/
-PRODUCT_PACKAGES += \
-    vndk-sp
-
-# WiFi: system side
-PRODUCT_PACKAGES += \
-	ip \
-	iw \
-	wificond \
-
+PRODUCT_COPY_FILES += \
+    device/generic/goldfish/fstab.goldfish:root/fstab.goldfish \
+    device/generic/goldfish/init.goldfish.rc:root/init.goldfish.rc \
+    device/generic/goldfish/init.goldfish.sh:system/etc/init.goldfish.sh \
+    device/generic/goldfish/ueventd.goldfish.rc:root/ueventd.goldfish.rc \
+    device/generic/goldfish/init.ranchu.rc:root/init.ranchu.rc \
+    device/generic/goldfish/fstab.ranchu:root/fstab.ranchu \
+    device/generic/goldfish/ueventd.ranchu.rc:root/ueventd.ranchu.rc \
+    device/generic/goldfish/input/goldfish_rotary.idc:system/usr/idc/goldfish_rotary.idc \
+    frameworks/native/data/etc/android.hardware.usb.accessory.xml:system/etc/permissions/android.hardware.usb.accessory.xml
 
 PRODUCT_PACKAGE_OVERLAYS := device/generic/goldfish/overlay
 
 PRODUCT_CHARACTERISTICS := emulator
-
-PRODUCT_FULL_TREBLE_OVERRIDE := true
-
-# goldfish vendor partition configurations
-$(call inherit-product-if-exists, device/generic/goldfish/vendor.mk)
-
-#watchdog tiggers reboot because location service is not
-#responding, disble it for now.
-#still keep it on internal master as it is still working
-#once it is fixed in aosp, remove this block of comment.
-#PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
-#config.disable_location=true
-
-# Enable Perfetto traced
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    persist.traced.enable=1
-
-# enable Google-specific location features,
-# like NetworkLocationProvider and LocationCollector
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    ro.com.google.locationfeatures=1
-
-# disable setupwizard
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    ro.setupwizard.mode=DISABLED

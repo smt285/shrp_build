@@ -297,6 +297,10 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
       print("Rewriting %s with new keys." % (info.filename,))
       new_data = ReplaceCerts(data)
       common.ZipWriteStr(output_tf_zip, out_info, new_data)
+    elif info.filename.startswith("SYSTEM/etc/permissions/"):
+      print("rewriting %s with new keys." % info.filename)
+      new_data = ReplaceCerts(data)
+      common.ZipWriteStr(output_tf_zip, out_info, new_data)
 
     # Ask add_img_to_target_files to rebuild the recovery patch if needed.
     elif info.filename in ("SYSTEM/recovery-from-boot.p",
@@ -464,7 +468,7 @@ def RewriteProps(data):
         value = "/".join(pieces)
       elif key == "ro.build.description":
         pieces = value.split(" ")
-        assert len(pieces) == 5
+        #assert len(pieces) == 5
         pieces[-1] = EditTags(pieces[-1])
         value = " ".join(pieces)
       elif key == "ro.build.tags":
@@ -538,6 +542,14 @@ def ReplaceOtaKeys(input_tf_zip, output_tf_zip, misc_info):
   else:
     recovery_keys_location = "RECOVERY/RAMDISK/res/keys"
   common.ZipWriteStr(output_tf_zip, recovery_keys_location, new_recovery_keys)
+
+  # Save the base64 key representation in the update for key-change
+  # validations
+  p = common.Run(["python", "vendor/cm/build/tools/getb64key.py",
+                 mapped_keys[0]], stdout=subprocess.PIPE)
+  data, _ = p.communicate()
+  if p.returncode == 0:
+    common.ZipWriteStr(output_tf_zip, "META/releasekey.txt", data)
 
   # SystemUpdateActivity uses the x509.pem version of the keys, but
   # put into a zipfile system/etc/security/otacerts.zip.

@@ -12,9 +12,7 @@ echo "ro.build.version.codename=$PLATFORM_VERSION_CODENAME"
 echo "ro.build.version.all_codenames=$PLATFORM_VERSION_ALL_CODENAMES"
 echo "ro.build.version.release=$PLATFORM_VERSION"
 echo "ro.build.version.security_patch=$PLATFORM_SECURITY_PATCH"
-echo "ro.omni.version.security_patch=$PLATFORM_SECURITY_PATCH_OMNI"
 echo "ro.build.version.base_os=$PLATFORM_BASE_OS"
-echo "ro.build.version.min_supported_target_sdk=$PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION"
 echo "ro.build.date=`$DATE`"
 echo "ro.build.date.utc=`$DATE +%s`"
 echo "ro.build.type=$TARGET_BUILD_TYPE"
@@ -32,6 +30,7 @@ echo "ro.product.model=$PRODUCT_MODEL"
 echo "ro.product.brand=$PRODUCT_BRAND"
 echo "ro.product.name=$PRODUCT_NAME"
 echo "ro.product.device=$TARGET_DEVICE"
+echo "ro.product.board=$TARGET_BOOTLOADER_BOARD_NAME"
 
 # These values are deprecated, use "ro.product.cpu.abilist"
 # instead (see below).
@@ -50,6 +49,7 @@ if [ -n "$PRODUCT_DEFAULT_LOCALE" ] ; then
   echo "ro.product.locale=$PRODUCT_DEFAULT_LOCALE"
 fi
 echo "ro.wifi.channels=$PRODUCT_DEFAULT_WIFI_CHANNELS"
+echo "ro.board.platform=$TARGET_BOARD_PLATFORM"
 
 echo "# ro.build.product is obsolete; use ro.product.device"
 echo "ro.build.product=$TARGET_DEVICE"
@@ -62,7 +62,6 @@ if [ -n "$BUILD_THUMBPRINT" ] ; then
 fi
 echo "ro.build.characteristics=$TARGET_AAPT_CHARACTERISTICS"
 
-# Omni properties
-echo "ro.omni.device=$OMNI_DEVICE"
+echo "ro.cm.device=$CM_DEVICE"
 
 echo "# end build properties"

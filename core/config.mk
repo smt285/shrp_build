@@ -3,18 +3,22 @@
 # current configuration and platform, which
 # are not specific to what is being built.
 
-ifndef KATI
-$(warning Directly using config.mk from make is no longer supported.)
-$(warning )
-$(warning If you are just attempting to build, you probably need to re-source envsetup.sh:)
-$(warning )
-$(warning $$ source build/envsetup.sh)
-$(warning )
-$(warning If you are attempting to emulate get_build_var, use one of the following:)
-$(warning $$ build/soong/soong_ui.bash --dumpvar-mode)
-$(warning $$ build/soong/soong_ui.bash --dumpvars-mode)
-$(warning )
-$(error done)
+# These may be used to trace makefile issues without interfering with
+# envsetup.sh.  Usage:
+#   $(call ainfo,some info message)
+#   $(call aerror,some error message)
+ifdef CALLED_FROM_SETUP
+define ainfo
+endef
+define aerror
+endef
+else
+define ainfo
+$(info $(1))
+endef
+define aerror
+$(error $(1))
+endef
 endif
 
 # Only use ANDROID_BUILD_SHELL to wrap around bash.
@@ -45,69 +49,43 @@ endef
 backslash := \a
 backslash := $(patsubst %a,%,$(backslash))
 
-# this turns off the suffix rules built into make
-.SUFFIXES:
+# Tell python not to spam the source tree with .pyc files.  This
+# only has an effect on python 2.6 and above.
+export PYTHONDONTWRITEBYTECODE := 1
 
-# this turns off the RCS / SCCS implicit rules of GNU Make
-% : RCS/%,v
-% : RCS/%
-% : %,v
-% : s.%
-% : SCCS/s.%
+ifneq ($(filter --color=always, $(GREP_OPTIONS)),)
+$(warning The build system needs unmodified output of grep.)
+$(error Please remove --color=always from your  $$GREP_OPTIONS)
+endif
 
-# If a rule fails, delete $@.
-.DELETE_ON_ERROR:
-
-# Mark variables deprecated/obsolete
-CHANGES_URL := https://android.googlesource.com/platform/build/+/master/Changes.md
-$(KATI_obsolete_var PATH,Do not use PATH directly. See $(CHANGES_URL)#PATH)
-$(KATI_obsolete_var PYTHONPATH,Do not use PYTHONPATH directly. See $(CHANGES_URL)#PYTHONPATH)
-$(KATI_obsolete_var OUT,Use OUT_DIR instead. See $(CHANGES_URL)#OUT)
-$(KATI_obsolete_var ANDROID_HOST_OUT,Use HOST_OUT instead. See $(CHANGES_URL)#ANDROID_HOST_OUT)
-$(KATI_obsolete_var ANDROID_PRODUCT_OUT,Use PRODUCT_OUT instead. See $(CHANGES_URL)#ANDROID_PRODUCT_OUT)
-$(KATI_obsolete_var ANDROID_HOST_OUT_TESTCASES,Use HOST_OUT_TESTCASES instead. See $(CHANGES_URL)#ANDROID_HOST_OUT_TESTCASES)
-$(KATI_obsolete_var ANDROID_TARGET_OUT_TESTCASES,Use TARGET_OUT_TESTCASES instead. See $(CHANGES_URL)#ANDROID_TARGET_OUT_TESTCASES)
-$(KATI_obsolete_var ANDROID_BUILD_TOP,Use '.' instead. See $(CHANGES_URL)#ANDROID_BUILD_TOP)
-$(KATI_obsolete_var \
-  ANDROID_TOOLCHAIN \
-  ANDROID_TOOLCHAIN_2ND_ARCH \
-  ANDROID_DEV_SCRIPTS \
-  ANDROID_EMULATOR_PREBUILTS \
-  ANDROID_PRE_BUILD_PATHS \
-  ,See $(CHANGES_URL)#other_envsetup_variables)
-$(KATI_obsolete_var PRODUCT_COMPATIBILITY_MATRIX_LEVEL_OVERRIDE,Set FCM Version in device manifest instead. See $(CHANGES_URL)#PRODUCT_COMPATIBILITY_MATRIX_LEVEL_OVERRIDE)
-$(KATI_obsolete_var USE_CLANG_PLATFORM_BUILD,Clang is the only supported Android compiler. See $(CHANGES_URL)#USE_CLANG_PLATFORM_BUILD)
-
-CHANGES_URL :=
-
-# Used to force goals to build.  Only use for conditionally defined goals.
-.PHONY: FORCE
-FORCE:
-
-ORIGINAL_MAKECMDGOALS := $(MAKECMDGOALS)
-
-dist_goal := $(strip $(filter dist,$(MAKECMDGOALS)))
-MAKECMDGOALS := $(strip $(filter-out dist,$(MAKECMDGOALS)))
-
-UNAME := $(shell uname -sm)
-
+# Standard source directories.
+SRC_DOCS:= $(TOPDIR)docs
+# TODO: Enforce some kind of layering; only add include paths
+#       when a module links against a particular library.
+# TODO: See if we can remove most of these from the global list.
+SRC_HEADERS := \
+	$(TOPDIR)system/core/include \
+	$(TOPDIR)system/media/audio/include \
+	$(TOPDIR)hardware/libhardware/include \
+	$(TOPDIR)hardware/libhardware_legacy/include \
+	$(TOPDIR)libnativehelper/include \
+	$(TOPDIR)frameworks/native/include \
+	$(TOPDIR)frameworks/native/opengl/include \
+	$(TOPDIR)frameworks/av/include \
+	$(TOPDIR)frameworks/base/include
+SRC_HOST_HEADERS:=$(TOPDIR)tools/include
+SRC_LIBRARIES:= $(TOPDIR)libs
+SRC_SERVERS:= $(TOPDIR)servers
 SRC_TARGET_DIR := $(TOPDIR)build/target
 SRC_API_DIR := $(TOPDIR)prebuilts/sdk/api
 SRC_SYSTEM_API_DIR := $(TOPDIR)prebuilts/sdk/system-api
 SRC_TEST_API_DIR := $(TOPDIR)prebuilts/sdk/test-api
 
 # Some specific paths to tools
-SRC_DROIDDOC_DIR := $(TOPDIR)build/make/tools/droiddoc
-
-# Set up efficient math functions which are used in make.
-# Here since this file is included by envsetup as well as during build.
-include $(BUILD_SYSTEM)/math.mk
+SRC_DROIDDOC_DIR := $(TOPDIR)build/tools/droiddoc
 
 # Various mappings to avoid hard-coding paths all over the place
 include $(BUILD_SYSTEM)/pathmap.mk
-
-# Allow projects to define their own globally-available variables
-include $(BUILD_SYSTEM)/project_definitions.mk
 
 # ###############################################################
 # Build system internal files
@@ -119,9 +97,6 @@ CLEAR_VARS:= $(BUILD_SYSTEM)/clear_vars.mk
 BUILD_HOST_STATIC_LIBRARY:= $(BUILD_SYSTEM)/host_static_library.mk
 BUILD_HOST_SHARED_LIBRARY:= $(BUILD_SYSTEM)/host_shared_library.mk
 BUILD_STATIC_LIBRARY:= $(BUILD_SYSTEM)/static_library.mk
-BUILD_HEADER_LIBRARY:= $(BUILD_SYSTEM)/header_library.mk
-BUILD_AUX_STATIC_LIBRARY:= $(BUILD_SYSTEM)/aux_static_library.mk
-BUILD_AUX_EXECUTABLE:= $(BUILD_SYSTEM)/aux_executable.mk
 BUILD_SHARED_LIBRARY:= $(BUILD_SYSTEM)/shared_library.mk
 BUILD_EXECUTABLE:= $(BUILD_SYSTEM)/executable.mk
 BUILD_HOST_EXECUTABLE:= $(BUILD_SYSTEM)/host_executable.mk
@@ -135,7 +110,6 @@ BUILD_JAVA_LIBRARY:= $(BUILD_SYSTEM)/java_library.mk
 BUILD_STATIC_JAVA_LIBRARY:= $(BUILD_SYSTEM)/static_java_library.mk
 BUILD_HOST_JAVA_LIBRARY:= $(BUILD_SYSTEM)/host_java_library.mk
 BUILD_DROIDDOC:= $(BUILD_SYSTEM)/droiddoc.mk
-BUILD_APIDIFF:= $(BUILD_SYSTEM)/apidiff.mk
 BUILD_COPY_HEADERS := $(BUILD_SYSTEM)/copy_headers.mk
 BUILD_NATIVE_TEST := $(BUILD_SYSTEM)/native_test.mk
 BUILD_NATIVE_BENCHMARK := $(BUILD_SYSTEM)/native_benchmark.mk
@@ -152,26 +126,21 @@ BUILD_NOTICE_FILE := $(BUILD_SYSTEM)/notice_files.mk
 BUILD_HOST_DALVIK_JAVA_LIBRARY := $(BUILD_SYSTEM)/host_dalvik_java_library.mk
 BUILD_HOST_DALVIK_STATIC_JAVA_LIBRARY := $(BUILD_SYSTEM)/host_dalvik_static_java_library.mk
 
-BUILD_HOST_TEST_CONFIG := $(BUILD_SYSTEM)/host_test_config.mk
-BUILD_TARGET_TEST_CONFIG := $(BUILD_SYSTEM)/target_test_config.mk
-
-INSTRUMENTATION_TEST_CONFIG_TEMPLATE := $(BUILD_SYSTEM)/instrumentation_test_config_template.xml
-NATIVE_TEST_CONFIG_TEMPLATE := $(BUILD_SYSTEM)/native_test_config_template.xml
-EMPTY_TEST_CONFIG := $(BUILD_SYSTEM)/empty_test_config.xml
-
-# Tool to generate TradeFed test config file automatically.
-AUTOGEN_TEST_CONFIG_SCRIPT := build/make/tools/auto_gen_test_config.py
 
 # ###############################################################
 # Parse out any modifier targets.
 # ###############################################################
 
-hide := @
+# The 'showcommands' goal says to show the full command
+# lines being executed, instead of a short message about
+# the kind of operation being done.
+SHOW_COMMANDS:= $(filter showcommands,$(MAKECMDGOALS))
+hide := $(if $(SHOW_COMMANDS),,@)
 
 ################################################################
 # Tools needed in product configuration makefiles.
 ################################################################
-NORMALIZE_PATH := build/make/tools/normalize_path.py
+NORMALIZE_PATH := build/tools/normalize_path.py
 
 # $(1): the paths to be normalized
 define normalize-paths
@@ -182,9 +151,6 @@ endef
 # Set common values
 # ###############################################################
 
-# Initialize SOONG_CONFIG_NAMESPACES so that it isn't recursive.
-SOONG_CONFIG_NAMESPACES :=
-
 # Set the extensions used for various packages
 COMMON_PACKAGE_SUFFIX := .zip
 COMMON_JAVA_PACKAGE_SUFFIX := .jar
@@ -194,11 +160,6 @@ ifdef TMPDIR
 JAVA_TMPDIR_ARG := -Djava.io.tmpdir=$(TMPDIR)
 else
 JAVA_TMPDIR_ARG :=
-endif
-
-# Default to remove the org.apache.http.legacy from bootclasspath
-ifeq ($(REMOVE_OAHL_FROM_BCP),)
-REMOVE_OAHL_FROM_BCP := true
 endif
 
 # ###############################################################
@@ -222,7 +183,14 @@ include $(BUILD_SYSTEM)/envsetup.mk
 
 # Pruned directory options used when using findleaves.py
 # See envsetup.mk for a description of SCAN_EXCLUDE_DIRS
-FIND_LEAVES_EXCLUDES := $(addprefix --prune=, $(SCAN_EXCLUDE_DIRS) .repo .git)
+FIND_LEAVES_EXCLUDES := $(addprefix --prune=, $(OUT_DIR) $(SCAN_EXCLUDE_DIRS) .repo .git)
+
+# General entries for project pathmap.  Any entries listed here should
+# be device and hardware independent.
+$(call project-set-path-variant,recovery,RECOVERY_VARIANT,bootable/recovery)
+
+-include vendor/extra/BoardConfigExtra.mk
+-include vendor/cm/config/BoardConfigCM.mk
 
 # The build system exposes several variables for where to find the kernel
 # headers:
@@ -254,8 +222,8 @@ FIND_LEAVES_EXCLUDES := $(addprefix --prune=, $(SCAN_EXCLUDE_DIRS) .repo .git)
 #     etc.
 #
 # NOTE: These directories MUST contain post-processed headers using the
-# bionic/libc/kernel/tools/clean_header.py tool. Additionally, the original
-# kernel headers must also be checked in, but in a different subdirectory. By
+# bionic/libc/kernel/clean_header.py tool. Additionally, the original kernel
+# headers must also be checked in, but in a different subdirectory. By
 # convention, the originals should be checked into original-kernel-headers
 # directory of the same parent dir. For example,
 #     device/samsung/tuna/kernel-headers            <----- post-processed
@@ -290,9 +258,6 @@ ifeq ($(TARGET_CPU_ABI),)
 endif
 TARGET_CPU_ABI2 := $(strip $(TARGET_CPU_ABI2))
 
-BOARD_KERNEL_BASE := $(strip $(BOARD_KERNEL_BASE))
-BOARD_KERNEL_PAGESIZE := $(strip $(BOARD_KERNEL_PAGESIZE))
-
 # Commands to generate .toc file common to ELF .so files.
 define _gen_toc_command_for_elf
 $(hide) ($($(PRIVATE_2ND_ARCH_VAR_PREFIX)$(PRIVATE_PREFIX)READELF) -d $(1) | grep SONAME || echo "No SONAME for $1") > $(2)
@@ -302,7 +267,7 @@ endef
 # Commands to generate .toc file from Darwin dynamic library.
 define _gen_toc_command_for_macho
 $(hide) otool -l $(1) | grep LC_ID_DYLIB -A 5 > $(2)
-$(hide) nm -gP $(1) | cut -f1-2 -d" " | (grep -v U$$ >> $(2) || true)
+$(hide) nm -gP $(1) | cut -f1-2 -d" " | grep -v U$$ >> $(2)
 endef
 
 combo_target := HOST_
@@ -343,14 +308,8 @@ combo_2nd_arch_prefix := $(TARGET_2ND_ARCH_VAR_PREFIX)
 include $(BUILD_SYSTEM)/combo/select.mk
 endif
 
-ifeq ($(CALLED_FROM_SETUP),true)
 include $(BUILD_SYSTEM)/ccache.mk
 include $(BUILD_SYSTEM)/goma.mk
-
-export CC_WRAPPER
-export CXX_WRAPPER
-export JAVAC_WRAPPER
-endif
 
 ifdef TARGET_PREFER_32_BIT
 TARGET_PREFER_32_BIT_APPS := true
@@ -405,20 +364,41 @@ TARGET_CPU_ABI_LIST := $(subst $(space),$(comma),$(strip $(TARGET_CPU_ABI_LIST))
 TARGET_CPU_ABI_LIST_32_BIT := $(subst $(space),$(comma),$(strip $(TARGET_CPU_ABI_LIST_32_BIT)))
 TARGET_CPU_ABI_LIST_64_BIT := $(subst $(space),$(comma),$(strip $(TARGET_CPU_ABI_LIST_64_BIT)))
 
-# GCC version selection
-TARGET_GCC_VERSION := 4.9
-ifdef TARGET_2ND_ARCH
-2ND_TARGET_GCC_VERSION := 4.9
+# Compute TARGET_TOOLCHAIN_ROOT from TARGET_TOOLS_PREFIX
+# if only TARGET_TOOLS_PREFIX is passed to the make command.
+ifndef TARGET_TOOLCHAIN_ROOT
+TARGET_TOOLCHAIN_ROOT := $(patsubst %/, %, $(dir $(TARGET_TOOLS_PREFIX)))
+TARGET_TOOLCHAIN_ROOT := $(patsubst %/, %, $(dir $(TARGET_TOOLCHAIN_ROOT)))
+TARGET_TOOLCHAIN_ROOT := $(wildcard $(TARGET_TOOLCHAIN_ROOT))
 endif
 
-# Normalize WITH_STATIC_ANALYZER
+# Normalize WITH_STATIC_ANALYZER and WITH_SYNTAX_CHECK
 ifeq ($(strip $(WITH_STATIC_ANALYZER)),0)
   WITH_STATIC_ANALYZER :=
 endif
+ifeq ($(strip $(WITH_SYNTAX_CHECK)),0)
+  WITH_SYNTAX_CHECK :=
+endif
 
-# Unset WITH_TIDY_ONLY if global WITH_TIDY_ONLY is not true nor 1.
-ifeq (,$(filter 1 true,$(WITH_TIDY_ONLY)))
-  WITH_TIDY_ONLY :=
+# define clang/llvm versions and base directory.
+include $(BUILD_SYSTEM)/clang/versions.mk
+
+# Disable WITH_STATIC_ANALYZER and WITH_SYNTAX_CHECK if tool can't be found
+SYNTAX_TOOLS_PREFIX := \
+    $(LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(LLVM_PREBUILTS_VERSION)/tools/scan-build/libexec
+ifneq ($(strip $(WITH_STATIC_ANALYZER)),)
+  ifeq ($(wildcard $(SYNTAX_TOOLS_PREFIX)/ccc-analyzer),)
+    $(warning *** Disable WITH_STATIC_ANALYZER because $(SYNTAX_TOOLS_PREFIX)/ccc-analyzer does not exist)
+    WITH_STATIC_ANALYZER :=
+  endif
+endif
+
+# WITH_STATIC_ANALYZER trumps WITH_SYNTAX_CHECK
+ifneq ($(strip $(WITH_STATIC_ANALYZER)),)
+  ifneq ($(strip $(WITH_SYNTAX_CHECK)),)
+    $(warning *** Disable WITH_SYNTAX_CHECK in the presence of static analyzer WITH_STATIC_ANALYZER)
+    WITH_SYNTAX_CHECK :=
+  endif
 endif
 
 # Pick a Java compiler.
@@ -451,9 +431,9 @@ pdk fusion: $(DEFAULT_GOAL)
 
 # What to build:
 # pdk fusion if:
-# 1) PDK_FUSION_PLATFORM_ZIP / PDK_FUSION_PLATFORM_DIR is passed in from the environment
+# 1) PDK_FUSION_PLATFORM_ZIP is passed in from the environment
 # or
-# 2) the platform.zip / pdk.mk exists in the default location
+# 2) the platform.zip exists in the default location
 # or
 # 3) fusion is a command line build goal,
 #    PDK_FUSION_PLATFORM_ZIP is needed anyway, then do we need the 'fusion' goal?
@@ -462,44 +442,27 @@ pdk fusion: $(DEFAULT_GOAL)
 # or
 # 2) TARGET_BUILD_PDK is passed in from the environment
 
-# if PDK_FUSION_PLATFORM_ZIP or PDK_FUSION_PLATFORM_DIR is specified, do not override.
-ifeq (,$(strip $(PDK_FUSION_PLATFORM_ZIP)$(PDK_FUSION_PLATFORM_DIR)))
-  # Most PDK project paths should be using vendor/pdk/TARGET_DEVICE
-  # but some legacy ones (e.g. mini_armv7a_neon generic PDK) were setup
-  # with vendor/pdk/TARGET_PRODUCT.
-  # Others are set up with vendor/pdk/TARGET_DEVICE/TARGET_DEVICE-userdebug
-  _pdk_fusion_search_paths := \
-    vendor/pdk/$(TARGET_DEVICE)/$(TARGET_DEVICE)-$(TARGET_BUILD_VARIANT)/platform \
-    vendor/pdk/$(TARGET_DEVICE)/$(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT)/platform \
-    vendor/pdk/$(TARGET_DEVICE)/$(patsubst aosp_%,full_%,$(TARGET_PRODUCT))-$(TARGET_BUILD_VARIANT)/platform \
-    vendor/pdk/$(TARGET_PRODUCT)/$(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT)/platform \
-    vendor/pdk/$(TARGET_PRODUCT)/$(patsubst aosp_%,full_%,$(TARGET_PRODUCT))-$(TARGET_BUILD_VARIANT)/platform
-
-  _pdk_fusion_default_platform_zip := $(strip $(foreach p,$(_pdk_fusion_search_paths),$(wildcard $(p)/platform.zip)))
-  ifneq (,$(_pdk_fusion_default_platform_zip))
-    PDK_FUSION_PLATFORM_ZIP := $(word 1, $(_pdk_fusion_default_platform_zip))
-    _pdk_fusion_default_platform_zip :=
-  else
-    _pdk_fusion_default_platform_mk := $(strip $(foreach p,$(_pdk_fusion_search_paths),$(wildcard $(p)/pdk.mk)))
-    ifneq (,$(_pdk_fusion_default_platform_mk))
-      PDK_FUSION_PLATFORM_DIR := $(dir $(word 1,$(_pdk_fusion_default_platform_mk)))
-      _pdk_fusion_default_platform_mk :=
-    endif
-  endif # _pdk_fusion_default_platform_zip
-  _pdk_fusion_search_paths :=
-endif # !PDK_FUSION_PLATFORM_ZIP && !PDK_FUSION_PLATFORM_DIR
-
-ifneq (,$(PDK_FUSION_PLATFORM_ZIP))
-  ifneq (,$(PDK_FUSION_PLATFORM_DIR))
-    $(error Only one of PDK_FUSION_PLATFORM_ZIP or PDK_FUSION_PLATFORM_DIR may be specified)
-  endif
-endif
+# if PDK_FUSION_PLATFORM_ZIP is specified, do not override.
+ifndef PDK_FUSION_PLATFORM_ZIP
+# Most PDK project paths should be using vendor/pdk/TARGET_DEVICE
+# but some legacy ones (e.g. mini_armv7a_neon generic PDK) were setup
+# with vendor/pdk/TARGET_PRODUCT.
+_pdk_fusion_default_platform_zip = $(strip \
+  $(wildcard vendor/pdk/$(TARGET_DEVICE)/$(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT)/platform/platform.zip) \
+  $(wildcard vendor/pdk/$(TARGET_DEVICE)/$(patsubst aosp_%,full_%,$(TARGET_PRODUCT))-$(TARGET_BUILD_VARIANT)/platform/platform.zip) \
+  $(wildcard vendor/pdk/$(TARGET_PRODUCT)/$(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT)/platform/platform.zip) \
+  $(wildcard vendor/pdk/$(TARGET_PRODUCT)/$(patsubst aosp_%,full_%,$(TARGET_PRODUCT))-$(TARGET_BUILD_VARIANT)/platform/platform.zip))
+ifneq (,$(_pdk_fusion_default_platform_zip))
+PDK_FUSION_PLATFORM_ZIP := $(word 1, $(_pdk_fusion_default_platform_zip))
+TARGET_BUILD_PDK := true
+endif # _pdk_fusion_default_platform_zip
+endif # !PDK_FUSION_PLATFORM_ZIP
 
 ifneq (,$(filter pdk fusion, $(MAKECMDGOALS)))
 TARGET_BUILD_PDK := true
 ifneq (,$(filter fusion, $(MAKECMDGOALS)))
-ifeq (,$(strip $(PDK_FUSION_PLATFORM_ZIP)$(PDK_FUSION_PLATFORM_DIR)))
-  $(error Specify PDK_FUSION_PLATFORM_ZIP or PDK_FUSION_PLATFORM_DIR to do a PDK fusion.)
+ifndef PDK_FUSION_PLATFORM_ZIP
+  $(error Specify PDK_FUSION_PLATFORM_ZIP to do a PDK fusion.)
 endif
 endif  # fusion
 endif  # pdk or fusion
@@ -507,139 +470,81 @@ endif  # pdk or fusion
 ifdef PDK_FUSION_PLATFORM_ZIP
 TARGET_BUILD_PDK := true
 ifeq (,$(wildcard $(PDK_FUSION_PLATFORM_ZIP)))
-  ifneq (,$(wildcard $(dir $(PDK_FUSION_PLATFORM_ZIP))/pdk.mk))
-    PDK_FUSION_PLATFORM_DIR := $(dir $(PDK_FUSION_PLATFORM_ZIP))
-    PDK_FUSION_PLATFORM_ZIP :=
-  else
-    $(error Cannot find file $(PDK_FUSION_PLATFORM_ZIP).)
-  endif
-endif
-endif
-
-ifdef PDK_FUSION_PLATFORM_DIR
-TARGET_BUILD_PDK := true
-ifeq (,$(wildcard $(PDK_FUSION_PLATFORM_DIR)/pdk.mk))
-  $(error Cannot find file $(PDK_FUSION_PLATFORM_DIR)/pdk.mk.)
+  $(error Cannot find file $(PDK_FUSION_PLATFORM_ZIP).)
 endif
 endif
 
 BUILD_PLATFORM_ZIP := $(filter platform platform-java,$(MAKECMDGOALS))
 
-# ---------------------------------------------------------------
-# Whether we can expect a full build graph
-ALLOW_MISSING_DEPENDENCIES := $(filter true,$(ALLOW_MISSING_DEPENDENCIES))
-ifneq ($(TARGET_BUILD_APPS),)
-ALLOW_MISSING_DEPENDENCIES := true
-endif
-ifeq ($(TARGET_BUILD_PDK),true)
-ALLOW_MISSING_DEPENDENCIES := true
-endif
-ifneq ($(filter true,$(SOONG_ALLOW_MISSING_DEPENDENCIES)),)
-ALLOW_MISSING_DEPENDENCIES := true
-endif
-ifneq ($(ONE_SHOT_MAKEFILE),)
-ALLOW_MISSING_DEPENDENCIES := true
-endif
-.KATI_READONLY := ALLOW_MISSING_DEPENDENCIES
-
-prebuilt_sdk_tools := prebuilts/sdk/tools
-prebuilt_sdk_tools_bin := $(prebuilt_sdk_tools)/$(HOST_OS)/bin
-
-# Always use prebuilts for ckati and makeparallel
-prebuilt_build_tools := prebuilts/build-tools
-prebuilt_build_tools_wrappers := prebuilts/build-tools/common/bin
-prebuilt_build_tools_jars := prebuilts/build-tools/common/framework
-ifeq ($(filter address,$(SANITIZE_HOST)),)
-prebuilt_build_tools_bin := $(prebuilt_build_tools)/$(HOST_PREBUILT_TAG)/bin
-else
-prebuilt_build_tools_bin := $(prebuilt_build_tools)/$(HOST_PREBUILT_TAG)/asan/bin
-endif
-
-USE_PREBUILT_SDK_TOOLS_IN_PLACE := true
-
-# Work around for b/68406220
-# This should match the soong version.
-ifndef USE_D8
-  USE_D8 := true
-endif
-
-# Default R8 behavior when USE_R8 is not specified.
-ifndef USE_R8
-  USE_R8 := false
-endif
-
 #
 # Tools that are prebuilts for TARGET_BUILD_APPS
 #
-ifeq (,$(TARGET_BUILD_APPS)$(filter true,$(TARGET_BUILD_PDK)))
-  AIDL := $(HOST_OUT_EXECUTABLES)/aidl
-  AAPT := $(HOST_OUT_EXECUTABLES)/aapt
-  AAPT2 := $(HOST_OUT_EXECUTABLES)/aapt2
-  DESUGAR := $(HOST_OUT_JAVA_LIBRARIES)/desugar.jar
-  MAINDEXCLASSES := $(HOST_OUT_EXECUTABLES)/mainDexClasses
-  SIGNAPK_JAR := $(HOST_OUT_JAVA_LIBRARIES)/signapk$(COMMON_JAVA_PACKAGE_SUFFIX)
-  SIGNAPK_JNI_LIBRARY_PATH := $(HOST_OUT_SHARED_LIBRARIES)
-  ZIPALIGN := $(HOST_OUT_EXECUTABLES)/zipalign
 
-else # TARGET_BUILD_APPS || TARGET_BUILD_PDK
-  AIDL := $(prebuilt_build_tools_bin)/aidl
-  AAPT := $(prebuilt_sdk_tools_bin)/aapt
-  AAPT2 := $(prebuilt_sdk_tools_bin)/aapt2
-  DESUGAR := $(prebuilt_build_tools_jars)/desugar.jar
-  MAINDEXCLASSES := $(prebuilt_sdk_tools)/mainDexClasses
-  SIGNAPK_JAR := $(prebuilt_sdk_tools)/lib/signapk$(COMMON_JAVA_PACKAGE_SUFFIX)
-  SIGNAPK_JNI_LIBRARY_PATH := $(prebuilt_sdk_tools)/$(HOST_OS)/lib64
-  ZIPALIGN := $(prebuilt_build_tools_bin)/zipalign
+ACP := $(HOST_OUT_EXECUTABLES)/acp
+AIDL := $(HOST_OUT_EXECUTABLES)/aidl
+AAPT := $(HOST_OUT_EXECUTABLES)/aapt
+AAPT2 := $(HOST_OUT_EXECUTABLES)/aapt2
+ZIPALIGN := $(HOST_OUT_EXECUTABLES)/zipalign
+SIGNAPK_JAR := $(HOST_OUT_JAVA_LIBRARIES)/signapk$(COMMON_JAVA_PACKAGE_SUFFIX)
+SIGNAPK_JNI_LIBRARY_PATH := $(HOST_OUT_SHARED_LIBRARIES)
+LLVM_RS_CC := $(HOST_OUT_EXECUTABLES)/llvm-rs-cc
+BCC_COMPAT := $(HOST_OUT_EXECUTABLES)/bcc_compat
+
+DX := $(HOST_OUT_EXECUTABLES)/dx
+MAINDEXCLASSES := $(HOST_OUT_EXECUTABLES)/mainDexClasses
+
+USE_PREBUILT_SDK_TOOLS_IN_PLACE := true
+
+# Override the definitions above for unbundled and PDK builds
+ifneq (,$(TARGET_BUILD_APPS)$(filter true,$(TARGET_BUILD_PDK)))
+prebuilt_sdk_tools := prebuilts/sdk/tools
+prebuilt_sdk_tools_bin := $(prebuilt_sdk_tools)/$(HOST_OS)/bin
+
+ACP := $(prebuilt_sdk_tools_bin)/acp
+AIDL := $(prebuilt_sdk_tools_bin)/aidl
+AAPT := $(prebuilt_sdk_tools_bin)/aapt
+AAPT2 := $(prebuilt_sdk_tools_bin)/aapt2
+ZIPALIGN := $(prebuilt_sdk_tools_bin)/zipalign
+SIGNAPK_JAR := $(prebuilt_sdk_tools)/lib/signapk$(COMMON_JAVA_PACKAGE_SUFFIX)
+# Use 64-bit libraries unconditionally because 32-bit JVMs are no longer supported
+SIGNAPK_JNI_LIBRARY_PATH := $(prebuilt_sdk_tools)/$(HOST_OS)/lib64
+
+DX := $(prebuilt_sdk_tools)/dx
+MAINDEXCLASSES := $(prebuilt_sdk_tools)/mainDexClasses
+
+# Don't use prebuilts in PDK
+ifneq ($(TARGET_BUILD_PDK),true)
+LLVM_RS_CC := $(prebuilt_sdk_tools_bin)/llvm-rs-cc
+BCC_COMPAT := $(prebuilt_sdk_tools_bin)/bcc_compat
+endif # TARGET_BUILD_PDK
 endif # TARGET_BUILD_APPS || TARGET_BUILD_PDK
 
-ifeq (,$(TARGET_BUILD_APPS))
-  # Use RenderScript prebuilts for unbundled builds but not PDK builds
-  LLVM_RS_CC := $(HOST_OUT_EXECUTABLES)/llvm-rs-cc
-  BCC_COMPAT := $(HOST_OUT_EXECUTABLES)/bcc_compat
-else
-  LLVM_RS_CC := $(prebuilt_sdk_tools_bin)/llvm-rs-cc
-  BCC_COMPAT := $(prebuilt_sdk_tools_bin)/bcc_compat
-endif # TARGET_BUILD_PDK
-
-prebuilt_sdk_tools :=
-prebuilt_sdk_tools_bin :=
-
-ACP := $(prebuilt_build_tools_bin)/acp
-CKATI := $(prebuilt_build_tools_bin)/ckati
-DEPMOD := $(HOST_OUT_EXECUTABLES)/depmod
-FILESLIST := $(SOONG_HOST_OUT_EXECUTABLES)/fileslist
-MAKEPARALLEL := $(prebuilt_build_tools_bin)/makeparallel
-SOONG_JAVAC_WRAPPER := $(SOONG_HOST_OUT_EXECUTABLES)/soong_javac_wrapper
-SOONG_ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/soong_zip
-MERGE_ZIPS := $(SOONG_HOST_OUT_EXECUTABLES)/merge_zips
-XMLLINT := $(SOONG_HOST_OUT_EXECUTABLES)/xmllint
-ZIP2ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/zip2zip
-ZIPTIME := $(prebuilt_build_tools_bin)/ziptime
 
 # ---------------------------------------------------------------
 # Generic tools.
+JACK := $(HOST_OUT_EXECUTABLES)/jack
 
-ifneq ($(FLEX_EXEC),)
-LEX := $(FLEX_EXEC)
+ifeq ($(USE_HOST_LEX),yes)
+LEX := flex
 else
-LEX := $(prebuilt_build_tools_bin)/flex
+LEX := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/flex/flex-2.5.39
 endif
 # The default PKGDATADIR built in the prebuilt bison is a relative path
-# prebuilts/build-tools/common/bison.
+# external/bison/data.
 # To run bison from elsewhere you need to set up enviromental variable
 # BISON_PKGDATADIR.
-BISON_PKGDATADIR := $(PWD)/prebuilts/build-tools/common/bison
-ifneq ($(BISON_EXEC),)
-BISON := $(BISON_EXEC)
+BISON_PKGDATADIR := $(PWD)/external/bison/data
+ifeq ($(USE_HOST_BISON),yes)
+BISON := $(HOST_OUT_EXECUTABLES)/bison
 else
-BISON := $(prebuilt_build_tools_bin)/bison
+BISON := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/bison/bison
 endif
 YACC := $(BISON) -d
-BISON_DATA := $(wildcard $(BISON_PKGDATADIR)/* $(BISON_PKGDATADIR)/*/*)
 
 YASM := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/yasm/yasm
 
 DOXYGEN:= doxygen
+AIDL_CPP := $(HOST_OUT_EXECUTABLES)/aidl-cpp$(HOST_EXECUTABLE_SUFFIX)
 ifeq ($(HOST_OS),linux)
 BREAKPAD_DUMP_SYMS := $(HOST_OUT_EXECUTABLES)/dump_syms
 else
@@ -647,35 +552,22 @@ else
 BREAKPAD_GENERATE_SYMBOLS := false
 endif
 PROTOC := $(HOST_OUT_EXECUTABLES)/aprotoc$(HOST_EXECUTABLE_SUFFIX)
-NANOPB_SRCS := external/nanopb-c/generator/protoc-gen-nanopb \
-    $(wildcard external/nanopb-c/generator/*.py \
-               external/nanopb-c/generator/google/*.py \
-               external/nanopb-c/generator/proto/*.py)
 VTSC := $(HOST_OUT_EXECUTABLES)/vtsc$(HOST_EXECUTABLE_SUFFIX)
+DBUS_GENERATOR := $(HOST_OUT_EXECUTABLES)/dbus-binding-generator
 MKBOOTFS := $(HOST_OUT_EXECUTABLES)/mkbootfs$(HOST_EXECUTABLE_SUFFIX)
 MINIGZIP := $(HOST_OUT_EXECUTABLES)/minigzip$(HOST_EXECUTABLE_SUFFIX)
-BROTLI := $(HOST_OUT_EXECUTABLES)/brotli$(HOST_EXECUTABLE_SUFFIX)
 ifeq (,$(strip $(BOARD_CUSTOM_MKBOOTIMG)))
 MKBOOTIMG := $(HOST_OUT_EXECUTABLES)/mkbootimg$(HOST_EXECUTABLE_SUFFIX)
 else
 MKBOOTIMG := $(BOARD_CUSTOM_MKBOOTIMG)
 endif
-ifeq (,$(strip $(BOARD_CUSTOM_BPTTOOL)))
-BPTTOOL := $(HOST_OUT_EXECUTABLES)/bpttool$(HOST_EXECUTABLE_SUFFIX)
-else
-BPTTOOL := $(BOARD_CUSTOM_BPTTOOL)
-endif
-ifeq (,$(strip $(BOARD_CUSTOM_AVBTOOL)))
-AVBTOOL := $(HOST_OUT_EXECUTABLES)/avbtool$(HOST_EXECUTABLE_SUFFIX)
-else
-AVBTOOL := $(BOARD_CUSTOM_AVBTOOL)
-endif
+MKYAFFS2 := $(HOST_OUT_EXECUTABLES)/mkyaffs2image$(HOST_EXECUTABLE_SUFFIX)
 APICHECK := $(HOST_OUT_EXECUTABLES)/apicheck$(HOST_EXECUTABLE_SUFFIX)
+MKIMAGE :=  $(HOST_OUT_EXECUTABLES)/mkimage$(HOST_EXECUTABLE_SUFFIX)
 FS_GET_STATS := $(HOST_OUT_EXECUTABLES)/fs_get_stats$(HOST_EXECUTABLE_SUFFIX)
-MAKE_EXT4FS := $(HOST_OUT_EXECUTABLES)/mke2fs$(HOST_EXECUTABLE_SUFFIX)
-MKEXTUSERIMG := $(HOST_OUT_EXECUTABLES)/mkuserimg_mke2fs.sh
-MKE2FS_CONF := system/extras/ext4_utils/mke2fs.conf
+MAKE_EXT4FS := $(HOST_OUT_EXECUTABLES)/make_ext4fs$(HOST_EXECUTABLE_SUFFIX)
 BLK_ALLOC_TO_BASE_FS := $(HOST_OUT_EXECUTABLES)/blk_alloc_to_base_fs$(HOST_EXECUTABLE_SUFFIX)
+MKEXTUSERIMG := $(HOST_OUT_EXECUTABLES)/mkuserimg.sh
 MAKE_SQUASHFS := $(HOST_OUT_EXECUTABLES)/mksquashfs$(HOST_EXECUTABLE_SUFFIX)
 MKSQUASHFSUSERIMG := $(HOST_OUT_EXECUTABLES)/mksquashfsimage.sh
 MAKE_F2FS := $(HOST_OUT_EXECUTABLES)/make_f2fs$(HOST_EXECUTABLE_SUFFIX)
@@ -683,17 +575,28 @@ MKF2FSUSERIMG := $(HOST_OUT_EXECUTABLES)/mkf2fsuserimg.sh
 SIMG2IMG := $(HOST_OUT_EXECUTABLES)/simg2img$(HOST_EXECUTABLE_SUFFIX)
 IMG2SIMG := $(HOST_OUT_EXECUTABLES)/img2simg$(HOST_EXECUTABLE_SUFFIX)
 E2FSCK := $(HOST_OUT_EXECUTABLES)/e2fsck$(HOST_EXECUTABLE_SUFFIX)
-MKTARBALL := build/make/tools/mktarball.sh
+MKTARBALL := build/tools/mktarball.sh
 TUNE2FS := $(HOST_OUT_EXECUTABLES)/tune2fs$(HOST_EXECUTABLE_SUFFIX)
+E2FSCK := $(HOST_OUT_EXECUTABLES)/e2fsck$(HOST_EXECUTABLE_SUFFIX)
 JARJAR := $(HOST_OUT_JAVA_LIBRARIES)/jarjar.jar
 DATA_BINDING_COMPILER := $(HOST_OUT_JAVA_LIBRARIES)/databinding-compiler.jar
-FAT16COPY := build/make/tools/fat16copy.py
-CHECK_LINK_TYPE := build/make/tools/check_link_type.py
+
+ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
+DEFAULT_JACK_ENABLED:=full
+else
+DEFAULT_JACK_ENABLED:=
+endif
+ifneq ($(ANDROID_JACK_EXTRA_ARGS),)
+DEFAULT_JACK_EXTRA_ARGS := $(ANDROID_JACK_EXTRA_ARGS)
+else
+DEFAULT_JACK_EXTRA_ARGS := @$(BUILD_SYSTEM)/jack-default.args
+endif
+# Turn off jack warnings by default.
+DEFAULT_JACK_EXTRA_ARGS += --verbose error
 
 PROGUARD := external/proguard/bin/proguard.sh
-JAVATAGS := build/make/tools/java-event-log-tags.py
-MERGETAGS := build/make/tools/merge-event-log-tags.py
-BUILD_IMAGE_SRCS := $(wildcard build/make/tools/releasetools/*.py)
+JAVATAGS := build/tools/java-event-log-tags.py
+RMTYPEDEFS := $(HOST_OUT_EXECUTABLES)/rmtypedefs
 APPEND2SIMG := $(HOST_OUT_EXECUTABLES)/append2simg
 VERITY_SIGNER := $(HOST_OUT_EXECUTABLES)/verity_signer
 BUILD_VERITY_TREE := $(HOST_OUT_EXECUTABLES)/build_verity_tree
@@ -701,52 +604,44 @@ BOOT_SIGNER := $(HOST_OUT_EXECUTABLES)/boot_signer
 FUTILITY := $(HOST_OUT_EXECUTABLES)/futility-host
 VBOOT_SIGNER := prebuilts/misc/scripts/vboot_signer/vboot_signer.sh
 FEC := $(HOST_OUT_EXECUTABLES)/fec
-BRILLO_UPDATE_PAYLOAD := $(HOST_OUT_EXECUTABLES)/brillo_update_payload
 
+ifndef TARGET_BUILD_APPS
+ZIPTIME := $(HOST_OUT_EXECUTABLES)/ziptime$(HOST_EXECUTABLE_SUFFIX)
+endif
+
+# ijar converts a .jar file to a smaller .jar file which only has its
+# interfaces.
+IJAR := $(HOST_OUT_EXECUTABLES)/ijar$(BUILD_EXECUTABLE_SUFFIX)
 DEXDUMP := $(HOST_OUT_EXECUTABLES)/dexdump2$(BUILD_EXECUTABLE_SUFFIX)
-PROFMAN := $(HOST_OUT_EXECUTABLES)/profman
-HIDDENAPI := $(HOST_OUT_EXECUTABLES)/hiddenapi
 
 # relocation packer
 RELOCATION_PACKER := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/relocation_packer/relocation_packer
 
 FINDBUGS_DIR := external/owasp/sanitizer/tools/findbugs/bin
 FINDBUGS := $(FINDBUGS_DIR)/findbugs
-
-JETIFIER := prebuilts/sdk/tools/jetifier/jetifier-standalone/bin/jetifier-standalone
+EMMA_JAR := external/emma/lib/emma$(COMMON_JAVA_PACKAGE_SUFFIX)
 
 # Tool to merge AndroidManifest.xmls
-ANDROID_MANIFEST_MERGER_CLASSPATH := \
-    prebuilts/gradle-plugin/com/android/tools/build/manifest-merger/26.0.0-beta2/manifest-merger-26.0.0-beta2.jar \
-    prebuilts/gradle-plugin/com/android/tools/sdk-common/26.0.0-beta2/sdk-common-26.0.0-beta2.jar \
-    prebuilts/gradle-plugin/com/android/tools/common/26.0.0-beta2/common-26.0.0-beta2.jar \
-    prebuilts/misc/common/guava/guava-21.0.jar
-ANDROID_MANIFEST_MERGER := $(JAVA) \
-    -classpath $(subst $(space),:,$(strip $(ANDROID_MANIFEST_MERGER_CLASSPATH))) \
-    com.android.manifmerger.Merger
+ANDROID_MANIFEST_MERGER := java -classpath prebuilts/devtools/tools/lib/manifest-merger.jar com.android.manifmerger.Main merge
 
 COLUMN:= column
 
-ifeq ($(EXPERIMENTAL_USE_OPENJDK9),)
-ifeq ($(RUN_ERROR_PRONE),true)
-USE_OPENJDK9 :=
-else
-USE_OPENJDK9 := true
+# We may not have the right JAVA_HOME/PATH set up yet when this is run from envsetup.sh.
+ifneq ($(CALLED_FROM_SETUP),true)
+HOST_JDK_TOOLS_JAR:= $(shell $(BUILD_SYSTEM)/find-jdk-tools-jar.sh)
+
+ifneq ($(HOST_JDK_TOOLS_JAR),)
+ifeq ($(wildcard $(HOST_JDK_TOOLS_JAR)),)
+$(error Error: could not find jdk tools.jar at $(HOST_JDK_TOOLS_JAR), please check if your JDK was installed correctly)
 endif
-TARGET_OPENJDK9 :=
-else ifeq ($(EXPERIMENTAL_USE_OPENJDK9),false)
-USE_OPENJDK9 :=
-TARGET_OPENJDK9 :=
-else ifeq ($(EXPERIMENTAL_USE_OPENJDK9),1.8)
-USE_OPENJDK9 := true
-TARGET_OPENJDK9 :=
-else ifeq ($(EXPERIMENTAL_USE_OPENJDK9),true)
-USE_OPENJDK9 := true
-TARGET_OPENJDK9 := true
 endif
 
-# Path to tools.jar
-HOST_JDK_TOOLS_JAR := $(ANDROID_JAVA8_HOME)/lib/tools.jar
+# Is the host JDK 64-bit version?
+HOST_JDK_IS_64BIT_VERSION :=
+ifneq ($(filter 64-Bit, $(shell java -version 2>&1)),)
+HOST_JDK_IS_64BIT_VERSION := true
+endif
+endif  # CALLED_FROM_SETUP not true
 
 # It's called md5 on Mac OS and md5sum on Linux
 ifeq ($(HOST_OS),darwin)
@@ -755,193 +650,62 @@ else
 MD5SUM:=md5sum
 endif
 
-# Define SHRP scripts
-SHRP_SCRIPT := vendor/shrp/shrp_final.sh
-BASH := bash
-
-APICHECK_CLASSPATH_ENTRIES := \
-    $(HOST_OUT_JAVA_LIBRARIES)/doclava$(COMMON_JAVA_PACKAGE_SUFFIX) \
-    $(HOST_OUT_JAVA_LIBRARIES)/jsilver$(COMMON_JAVA_PACKAGE_SUFFIX) \
-    $(HOST_JDK_TOOLS_JAR) \
-    )
-APICHECK_CLASSPATH := $(subst $(space),:,$(strip $(APICHECK_CLASSPATH_ENTRIES)))
-
+APICHECK_CLASSPATH := $(HOST_JDK_TOOLS_JAR)
+APICHECK_CLASSPATH := $(APICHECK_CLASSPATH):$(HOST_OUT_JAVA_LIBRARIES)/doclava$(COMMON_JAVA_PACKAGE_SUFFIX)
+APICHECK_CLASSPATH := $(APICHECK_CLASSPATH):$(HOST_OUT_JAVA_LIBRARIES)/jsilver$(COMMON_JAVA_PACKAGE_SUFFIX)
 APICHECK_COMMAND := $(APICHECK) -JXmx1024m -J"classpath $(APICHECK_CLASSPATH)"
 
-# Boolean variable determining if the whitelist for compatible properties is enabled
-PRODUCT_COMPATIBLE_PROPERTY := false
-ifneq ($(PRODUCT_COMPATIBLE_PROPERTY_OVERRIDE),)
-  PRODUCT_COMPATIBLE_PROPERTY := $(PRODUCT_COMPATIBLE_PROPERTY_OVERRIDE)
-else ifeq ($(PRODUCT_SHIPPING_API_LEVEL),)
-  #$(warning no product shipping level defined)
-else ifneq ($(call math_lt,27,$(PRODUCT_SHIPPING_API_LEVEL)),)
-  PRODUCT_COMPATIBLE_PROPERTY := true
-endif
-
-.KATI_READONLY := \
-    PRODUCT_COMPATIBLE_PROPERTY
-
-# Boolean variable determining if Treble is fully enabled
-PRODUCT_FULL_TREBLE := false
-ifneq ($(PRODUCT_FULL_TREBLE_OVERRIDE),)
-  PRODUCT_FULL_TREBLE := $(PRODUCT_FULL_TREBLE_OVERRIDE)
-else ifeq ($(PRODUCT_SHIPPING_API_LEVEL),)
-  #$(warning no product shipping level defined)
-else ifneq ($(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),26),)
-  PRODUCT_FULL_TREBLE := true
-endif
-
-# TODO(b/69865032): Make PRODUCT_NOTICE_SPLIT the default behavior and remove
-#    references to it here and below.
-ifdef PRODUCT_NOTICE_SPLIT_OVERRIDE
-   $(error PRODUCT_NOTICE_SPLIT_OVERRIDE cannot be set.)
-endif
-
-requirements := \
-    PRODUCT_TREBLE_LINKER_NAMESPACES \
-    PRODUCT_SEPOLICY_SPLIT \
-    PRODUCT_ENFORCE_VINTF_MANIFEST \
-    PRODUCT_NOTICE_SPLIT
-
-# If it is overriden, then the requirement override is taken, otherwise it's
-# PRODUCT_FULL_TREBLE
-$(foreach req,$(requirements),$(eval \
-    $(req) := $(if $($(req)_OVERRIDE),$($(req)_OVERRIDE),$(PRODUCT_FULL_TREBLE))))
-# If the requirement is false for any reason, then it's not PRODUCT_FULL_TREBLE
-$(foreach req,$(requirements),$(eval \
-    PRODUCT_FULL_TREBLE := $(if $(filter false,$($(req))),false,$(PRODUCT_FULL_TREBLE))))
-
-PRODUCT_FULL_TREBLE_OVERRIDE ?=
-$(foreach req,$(requirements),$(eval $(req)_OVERRIDE ?=))
-
-.KATI_READONLY := \
-    PRODUCT_FULL_TREBLE_OVERRIDE \
-    $(foreach req,$(requirements),$(req)_OVERRIDE) \
-    $(requirements) \
-    PRODUCT_FULL_TREBLE \
-
-requirements :=
-
-# BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED can be true only if early-mount of
-# partitions is supported. But the early-mount must be supported for full
-# treble products, and so BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED should be set
-# by default for full treble products.
-ifeq ($(PRODUCT_FULL_TREBLE),true)
-  BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED ?= true
-endif
-
-# If PRODUCT_USE_VNDK is true and BOARD_VNDK_VERSION is not defined yet,
-# BOARD_VNDK_VERSION will be set to "current" as default.
-# PRODUCT_USE_VNDK will be true in Android-P or later launching devices.
-PRODUCT_USE_VNDK := false
-ifneq ($(PRODUCT_USE_VNDK_OVERRIDE),)
-  PRODUCT_USE_VNDK := $(PRODUCT_USE_VNDK_OVERRIDE)
-else ifeq ($(PRODUCT_SHIPPING_API_LEVEL),)
-  # No shipping level defined
-else ifeq ($(call math_gt_or_eq,27,$(PRODUCT_SHIPPING_API_LEVEL)),)
-  PRODUCT_USE_VNDK := $(PRODUCT_FULL_TREBLE)
-endif
-
-ifeq ($(PRODUCT_USE_VNDK),true)
-  ifndef BOARD_VNDK_VERSION
-    BOARD_VNDK_VERSION := current
-  endif
-endif
-
-$(KATI_obsolete_var PRODUCT_USE_VNDK_OVERRIDE,Use PRODUCT_USE_VNDK instead)
-.KATI_READONLY := \
-    PRODUCT_USE_VNDK
-
-# Set BOARD_SYSTEMSDK_VERSIONS to the latest SystemSDK version starting from P-launching
-# devices if unset.
-ifndef BOARD_SYSTEMSDK_VERSIONS
-  ifdef PRODUCT_SHIPPING_API_LEVEL
-  ifneq ($(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),28),)
-    ifeq (REL,$(PLATFORM_VERSION_CODENAME))
-      BOARD_SYSTEMSDK_VERSIONS := $(PLATFORM_SDK_VERSION)
-    else
-      BOARD_SYSTEMSDK_VERSIONS := $(PLATFORM_VERSION_CODENAME)
-    endif
-  endif
-  endif
-endif
-
-
-ifdef PRODUCT_SHIPPING_API_LEVEL
-  ifneq ($(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),27),)
-    ifneq ($(TARGET_USES_MKE2FS),true)
-      $(error When PRODUCT_SHIPPING_API_LEVEL >= 27, TARGET_USES_MKE2FS must be true)
-    endif
-  endif
-  ifneq ($(call numbers_less_than,$(PRODUCT_SHIPPING_API_LEVEL),$(BOARD_SYSTEMSDK_VERSIONS)),)
-    $(error BOARD_SYSTEMSDK_VERSIONS ($(BOARD_SYSTEMSDK_VERSIONS)) must all be greater than or equal to PRODUCT_SHIPPING_API_LEVEL ($(PRODUCT_SHIPPING_API_LEVEL)))
-  endif
-  ifneq ($(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),28),)
-    ifneq ($(TARGET_IS_64_BIT), true)
-      ifneq ($(TARGET_USES_64_BIT_BINDER), true)
-        $(error When PRODUCT_SHIPPING_API_LEVEL >= 28, TARGET_USES_64_BIT_BINDER must be true)
-      endif
-    endif
-    ifeq ($(PRODUCT_FULL_TREBLE),true)
-      ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE), true)
-        $(error When PRODUCT_SHIPPING_API_LEVEL >= 28, BOARD_BUILD_SYSTEM_ROOT_IMAGE must be true)
-      endif
-    endif
-  endif
-endif
-
 # The default key if not set as LOCAL_CERTIFICATE
-include $(TOPDIR)vendor/omni/build/core/certs.mk
 ifdef PRODUCT_DEFAULT_DEV_CERTIFICATE
   DEFAULT_SYSTEM_DEV_CERTIFICATE := $(PRODUCT_DEFAULT_DEV_CERTIFICATE)
 else
   DEFAULT_SYSTEM_DEV_CERTIFICATE := build/target/product/security/testkey
 endif
 
-BUILD_NUMBER_FROM_FILE := $$(cat $(OUT_DIR)/build_number.txt)
-BUILD_DATETIME_FROM_FILE := $$(cat $(BUILD_DATETIME_FILE))
+# Rules for QCOM targets
+include vendor/cm/build/core/qcom_target.mk
 
-# SEPolicy versions
-
-# PLATFORM_SEPOLICY_VERSION is a number of the form "NN.m" with "NN" mapping to
-# PLATFORM_SDK_VERSION and "m" as a minor number which allows for SELinux
-# changes independent of PLATFORM_SDK_VERSION.  This value will be set to
-# 10000.0 to represent tip-of-tree development that is inherently unstable and
-# thus designed not to work with any shipping vendor policy.  This is similar in
-# spirit to how DEFAULT_APP_TARGET_SDK is set.
-# The minor version ('m' component) must be updated every time a platform release
-# is made which breaks compatibility with the previous platform sepolicy version,
-# not just on every increase in PLATFORM_SDK_VERSION.  The minor version should
-# be reset to 0 on every bump of the PLATFORM_SDK_VERSION.
-sepolicy_major_vers := 28
-sepolicy_minor_vers := 0
-
-ifneq ($(sepolicy_major_vers), $(PLATFORM_SDK_VERSION))
-$(error sepolicy_major_version does not match PLATFORM_SDK_VERSION, please update.)
-endif
-
-TOT_SEPOLICY_VERSION := 10000.0
-ifneq (REL,$(PLATFORM_VERSION_CODENAME))
-    PLATFORM_SEPOLICY_VERSION := $(TOT_SEPOLICY_VERSION)
-else
-    PLATFORM_SEPOLICY_VERSION := $(join $(addsuffix .,$(sepolicy_major_vers)), $(sepolicy_minor_vers))
-endif
-sepolicy_major_vers :=
-sepolicy_minor_vers :=
-
-# A list of SEPolicy versions, besides PLATFORM_SEPOLICY_VERSION, that the framework supports.
-PLATFORM_SEPOLICY_COMPAT_VERSIONS := \
-    26.0 \
-    27.0
-
-.KATI_READONLY := \
-    PLATFORM_SEPOLICY_COMPAT_VERSIONS \
-    PLATFORM_SEPOLICY_VERSION \
-    TOT_SEPOLICY_VERSION \
+# Rules for MTK targets
+include vendor/cm/build/core/mtk_target.mk
 
 # ###############################################################
 # Set up final options.
 # ###############################################################
+
+ifneq ($(COMMON_GLOBAL_CFLAGS)$(COMMON_GLOBAL_CPPFLAGS),)
+$(warning COMMON_GLOBAL_C(PP)FLAGS changed)
+$(info *** Device configurations are no longer allowed to change the global flags.)
+$(info *** COMMON_GLOBAL_CFLAGS: $(COMMON_GLOBAL_CFLAGS))
+$(info *** COMMON_GLOBAL_CPPFLAGS: $(COMMON_GLOBAL_CPPFLAGS))
+$(error bailing...)
+endif
+
+# These can be changed to modify both host and device modules.
+COMMON_GLOBAL_CFLAGS:= -DANDROID -fmessage-length=0 -W -Wall -Wno-unused -Winit-self -Wpointer-arith
+COMMON_RELEASE_CFLAGS:= -DNDEBUG -UDEBUG
+
+# Force gcc to always output color diagnostics.  Ninja will strip the ANSI
+# color codes if it is not running in a terminal.
+ifdef BUILDING_WITH_NINJA
+COMMON_GLOBAL_CFLAGS += -fdiagnostics-color
+endif
+
+COMMON_GLOBAL_CPPFLAGS:= -Wsign-promo
+COMMON_RELEASE_CPPFLAGS:=
+
+GLOBAL_CFLAGS_NO_OVERRIDE := \
+    -Werror=int-to-pointer-cast \
+    -Werror=pointer-to-int-cast \
+
+GLOBAL_CLANG_CFLAGS_NO_OVERRIDE := \
+    -Werror=address-of-temporary \
+    -Werror=null-dereference \
+    -Werror=return-type \
+
+GLOBAL_CPPFLAGS_NO_OVERRIDE :=
+
+# list of flags to turn specific warnings in to errors
+TARGET_ERROR_FLAGS := -Werror=return-type -Werror=non-virtual-dtor -Werror=address -Werror=sequence-point -Werror=date-time
 
 # We run gcc/clang with PWD=/proc/self/cwd to remove the $TOP
 # from the debug output. That way two builds in two different
@@ -949,18 +713,118 @@ PLATFORM_SEPOLICY_COMPAT_VERSIONS := \
 # /proc doesn't exist on Darwin.
 ifeq ($(HOST_OS),linux)
 RELATIVE_PWD := PWD=/proc/self/cwd
+# Remove this useless prefix from the debug output.
+COMMON_GLOBAL_CFLAGS += -fdebug-prefix-map=/proc/self/cwd=
 else
 RELATIVE_PWD :=
 endif
 
-TARGET_PROJECT_INCLUDES :=
-TARGET_PROJECT_SYSTEM_INCLUDES := \
+# Allow the C/C++ macros __DATE__ and __TIME__ to be set to the
+# build date and time, so that a build may be repeated.
+# Write the date and time to a file so that the command line
+# doesn't change every time, which would cause ninja to rebuild
+# the files.
+$(shell mkdir -p $(OUT_DIR) && \
+    $(DATE) "+%b %_d %Y" > $(OUT_DIR)/build_c_date.txt && \
+    $(DATE) +%T > $(OUT_DIR)/build_c_time.txt)
+BUILD_DATETIME_C_DATE := $$(cat $(OUT_DIR)/build_c_date.txt)
+BUILD_DATETIME_C_TIME := $$(cat $(OUT_DIR)/build_c_time.txt)
+ifeq ($(OVERRIDE_C_DATE_TIME),true)
+COMMON_GLOBAL_CFLAGS += -Wno-builtin-macro-redefined -D__DATE__="\"$(BUILD_DATETIME_C_DATE)\"" -D__TIME__=\"$(BUILD_DATETIME_C_TIME)\"
+endif
+
+HOST_GLOBAL_CFLAGS += $(COMMON_GLOBAL_CFLAGS)
+HOST_RELEASE_CFLAGS += $(COMMON_RELEASE_CFLAGS)
+
+HOST_GLOBAL_CPPFLAGS += $(COMMON_GLOBAL_CPPFLAGS)
+HOST_RELEASE_CPPFLAGS += $(COMMON_RELEASE_CPPFLAGS)
+
+TARGET_GLOBAL_CFLAGS += $(COMMON_GLOBAL_CFLAGS)
+TARGET_RELEASE_CFLAGS += $(COMMON_RELEASE_CFLAGS)
+
+TARGET_GLOBAL_CPPFLAGS += $(COMMON_GLOBAL_CPPFLAGS)
+TARGET_RELEASE_CPPFLAGS += $(COMMON_RELEASE_CPPFLAGS)
+
+HOST_GLOBAL_LD_DIRS += -L$(HOST_OUT_INTERMEDIATE_LIBRARIES)
+TARGET_GLOBAL_LD_DIRS += -L$(TARGET_OUT_INTERMEDIATE_LIBRARIES)
+
+HOST_PROJECT_INCLUDES:= $(SRC_HEADERS) $(SRC_HOST_HEADERS) $(HOST_OUT_HEADERS)
+TARGET_PROJECT_INCLUDES:= $(SRC_HEADERS) $(TOPDIR)$(call project-path-for,ril)/include \
+		$(TARGET_OUT_HEADERS) \
 		$(TARGET_DEVICE_KERNEL_HEADERS) $(TARGET_BOARD_KERNEL_HEADERS) \
 		$(TARGET_PRODUCT_KERNEL_HEADERS)
 
+# Many host compilers don't support these flags, so we have to make
+# sure to only specify them for the target compilers checked in to
+# the source tree.
+TARGET_GLOBAL_CFLAGS += $(TARGET_ERROR_FLAGS)
+
+HOST_GLOBAL_CFLAGS += $(HOST_RELEASE_CFLAGS)
+HOST_GLOBAL_CPPFLAGS += $(HOST_RELEASE_CPPFLAGS)
+
+TARGET_GLOBAL_CFLAGS += $(TARGET_RELEASE_CFLAGS)
+TARGET_GLOBAL_CPPFLAGS += $(TARGET_RELEASE_CPPFLAGS)
+
 ifdef TARGET_2ND_ARCH
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_GLOBAL_CFLAGS += $(COMMON_GLOBAL_CFLAGS)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_RELEASE_CFLAGS += $(COMMON_RELEASE_CFLAGS)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_GLOBAL_CPPFLAGS += $(COMMON_GLOBAL_CPPFLAGS)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_RELEASE_CPPFLAGS += $(COMMON_RELEASE_CPPFLAGS)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_GLOBAL_LD_DIRS += -L$($(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATE_LIBRARIES)
 $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_PROJECT_INCLUDES := $(TARGET_PROJECT_INCLUDES)
-$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_PROJECT_SYSTEM_INCLUDES := $(TARGET_PROJECT_SYSTEM_INCLUDES)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_GLOBAL_CFLAGS += $(TARGET_ERROR_FLAGS)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_GLOBAL_CFLAGS += $($(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_RELEASE_CFLAGS)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_GLOBAL_CPPFLAGS += $($(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_RELEASE_CPPFLAGS)
+endif
+
+ifdef HOST_2ND_ARCH
+$(HOST_2ND_ARCH_VAR_PREFIX)HOST_GLOBAL_CFLAGS += $(COMMON_GLOBAL_CFLAGS)
+$(HOST_2ND_ARCH_VAR_PREFIX)HOST_RELEASE_CFLAGS += $(COMMON_RELEASE_CFLAGS)
+$(HOST_2ND_ARCH_VAR_PREFIX)HOST_GLOBAL_CPPFLAGS += $(COMMON_GLOBAL_CPPFLAGS)
+$(HOST_2ND_ARCH_VAR_PREFIX)HOST_RELEASE_CPPFLAGS += $(COMMON_RELEASE_CPPFLAGS)
+$(HOST_2ND_ARCH_VAR_PREFIX)HOST_GLOBAL_LD_DIRS += -L$($(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_INTERMEDIATE_LIBRARIES)
+$(HOST_2ND_ARCH_VAR_PREFIX)HOST_PROJECT_INCLUDES := $(HOST_PROJECT_INCLUDES)
+$(HOST_2ND_ARCH_VAR_PREFIX)HOST_GLOBAL_CFLAGS += $($(HOST_2ND_ARCH_VAR_PREFIX)HOST_RELEASE_CFLAGS)
+$(HOST_2ND_ARCH_VAR_PREFIX)HOST_GLOBAL_CPPFLAGS += $($(HOST_2ND_ARCH_VAR_PREFIX)HOST_RELEASE_CPPFLAGS)
+endif
+
+ifdef HOST_CROSS_OS
+HOST_CROSS_GLOBAL_CFLAGS += $(filter-out $(HOST_CROSS_UNKNOWN_CFLAGS),$(COMMON_GLOBAL_CFLAGS))
+HOST_CROSS_RELEASE_CFLAGS += $(COMMON_RELEASE_CFLAGS)
+HOST_CROSS_GLOBAL_CPPFLAGS += $(COMMON_GLOBAL_CPPFLAGS)
+HOST_CROSS_RELEASE_CPPFLAGS += $(COMMON_RELEASE_CPPFLAGS)
+HOST_CROSS_GLOBAL_LD_DIRS += -L$(HOST_CROSS_OUT_INTERMEDIATE_LIBRARIES)
+HOST_CROSS_PROJECT_INCLUDES:= $(SRC_HEADERS) $(SRC_HOST_HEADERS) $(HOST_CROSS_OUT_HEADERS)
+HOST_CROSS_GLOBAL_CFLAGS += $(HOST_CROSS_RELEASE_CFLAGS)
+HOST_CROSS_GLOBAL_CPPFLAGS += $(HOST_CROSS_RELEASE_CPPFLAGS)
+
+ifdef HOST_CROSS_2ND_ARCH
+$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_GLOBAL_CFLAGS += $(filter-out $($(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_UNKNOWN_CFLAGS),$(COMMON_GLOBAL_CFLAGS))
+$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_RELEASE_CFLAGS += $(COMMON_RELEASE_CFLAGS)
+$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_GLOBAL_CPPFLAGS += $(COMMON_GLOBAL_CPPFLAGS)
+$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_RELEASE_CPPFLAGS += $(COMMON_RELEASE_CPPFLAGS)
+$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_GLOBAL_LD_DIRS += -L$($(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_INTERMEDIATE_LIBRARIES)
+$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_PROJECT_INCLUDES:= $(SRC_HEADERS) $(SRC_HOST_HEADERS) $($(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_HEADERS)
+$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_GLOBAL_CFLAGS += $($(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_RELEASE_CFLAGS)
+$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_GLOBAL_CPPFLAGS += $($(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_RELEASE_CPPFLAGS)
+endif
+endif
+
+ifdef BRILLO
+# Add a C define that identifies Brillo targets. __BRILLO__ should only be used
+# to differentiate between Brillo and non-Brillo-but-Android environments. Use
+# __ANDROID__ instead to test if something is being built in an Android-derived
+# environment (including Brillo) as opposed to an entirely different
+# environment (e.g. Chrome OS).
+TARGET_GLOBAL_CFLAGS += -D__BRILLO__
+ifdef TARGET_2ND_ARCH
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_GLOBAL_CFLAGS += -D__BRILLO__
+endif
+endif
+
+# allow overriding default Java libraries on a per-target basis
+ifeq ($(TARGET_DEFAULT_JAVA_LIBRARIES),)
+  TARGET_DEFAULT_JAVA_LIBRARIES := core-oj core-libart core-junit ext framework okhttp
 endif
 
 # Flags for DEX2OAT
@@ -974,6 +838,9 @@ $(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_ARCH := $(TARGET_2ND_ARCH)
 $(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_CPU_VARIANT := $(call first_non_empty_of_three,$(TARGET_2ND_CPU_VARIANT),$(TARGET_2ND_ARCH_VARIANT),default)
 $(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES := default
 endif
+
+# define clang/llvm tools and global flags
+include $(BUILD_SYSTEM)/clang/config.mk
 
 # ###############################################################
 # Collect a list of the SDK versions that we could compile against
@@ -1010,39 +877,15 @@ TARGET_AVAILABLE_SDK_VERSIONS := $(call numerically_sort,\
     $(patsubst $(HISTORICAL_SDK_VERSIONS_ROOT)/%/android.jar,%, \
     $(wildcard $(HISTORICAL_SDK_VERSIONS_ROOT)/*/android.jar)))
 
-TARGET_AVAILABLE_SDK_VERSIONS := $(addprefix system_,$(call numerically_sort,\
-    $(patsubst $(HISTORICAL_SDK_VERSIONS_ROOT)/%/android_system.jar,%, \
-    $(wildcard $(HISTORICAL_SDK_VERSIONS_ROOT)/*/android_system.jar)))) \
-    $(TARGET_AVAILABLE_SDK_VERSIONS)
-
-# We don't have prebuilt test_current and core_current SDK yet.
-TARGET_AVAILABLE_SDK_VERSIONS := test_current core_current $(TARGET_AVAILABLE_SDK_VERSIONS)
-
-TARGET_SDK_VERSIONS_WITHOUT_JAVA_18_SUPPORT := $(call numbers_less_than,24,$(TARGET_AVAILABLE_SDK_VERSIONS))
-TARGET_SDK_VERSIONS_WITHOUT_JAVA_19_SUPPORT := $(call numbers_less_than,27,$(TARGET_AVAILABLE_SDK_VERSIONS))
+# We don't have prebuilt test_current SDK yet.
+TARGET_AVAILABLE_SDK_VERSIONS := test_current $(TARGET_AVAILABLE_SDK_VERSIONS)
 
 INTERNAL_PLATFORM_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/public_api.txt
-INTERNAL_PLATFORM_DEX_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/public-dex.txt
-INTERNAL_PLATFORM_PRIVATE_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/private.txt
-INTERNAL_PLATFORM_PRIVATE_DEX_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/private-dex.txt
 INTERNAL_PLATFORM_REMOVED_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/removed.txt
-INTERNAL_PLATFORM_REMOVED_DEX_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/removed-dex.txt
 INTERNAL_PLATFORM_SYSTEM_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/system-api.txt
-INTERNAL_PLATFORM_SYSTEM_PRIVATE_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/system-private.txt
-INTERNAL_PLATFORM_SYSTEM_PRIVATE_DEX_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/system-private-dex.txt
 INTERNAL_PLATFORM_SYSTEM_REMOVED_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/system-removed.txt
-INTERNAL_PLATFORM_SYSTEM_EXACT_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/system-exact.txt
 INTERNAL_PLATFORM_TEST_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/test-api.txt
 INTERNAL_PLATFORM_TEST_REMOVED_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/test-removed.txt
-INTERNAL_PLATFORM_TEST_EXACT_API_FILE := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/test-exact.txt
-
-INTERNAL_PLATFORM_HIDDENAPI_LIGHT_GREYLIST := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/hiddenapi-light-greylist.txt
-INTERNAL_PLATFORM_HIDDENAPI_DARK_GREYLIST := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/hiddenapi-dark-greylist.txt
-INTERNAL_PLATFORM_HIDDENAPI_BLACKLIST := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/hiddenapi-blacklist.txt
-
-# Missing optional uses-libraries so that the platform doesn't create build rules that depend on
-# them. See setup_one_odex.mk.
-INTERNAL_PLATFORM_MISSING_USES_LIBRARIES := com.google.android.ble com.google.android.wearable
 
 # This is the standard way to name a directory containing prebuilt target
 # objects. E.g., prebuilt/$(TARGET_PREBUILT_TAG)/libc.so
@@ -1055,50 +898,39 @@ endif
 
 RS_PREBUILT_CLCORE := prebuilts/sdk/renderscript/lib/$(TARGET_ARCH)/librsrt_$(TARGET_ARCH).bc
 RS_PREBUILT_COMPILER_RT := prebuilts/sdk/renderscript/lib/$(TARGET_ARCH)/libcompiler_rt.a
+ifeq (true,$(TARGET_IS_64_BIT))
+RS_PREBUILT_LIBPATH := -L prebuilts/ndk/current/platforms/android-21/arch-$(TARGET_ARCH)/usr/lib64 \
+                       -L prebuilts/ndk/current/platforms/android-21/arch-$(TARGET_ARCH)/usr/lib
+else
+RS_PREBUILT_LIBPATH := -L prebuilts/ndk/current/platforms/android-9/arch-$(TARGET_ARCH)/usr/lib
+endif
 
 # API Level lists for Renderscript Compat lib.
 RSCOMPAT_32BIT_ONLY_API_LEVELS := 8 9 10 11 12 13 14 15 16 17 18 19 20
 RSCOMPAT_NO_USAGEIO_API_LEVELS := 8 9 10 11 12 13
 
-# Add BUILD_NUMBER to apps default version name if it's unbundled build.
-ifdef TARGET_BUILD_APPS
-TARGET_BUILD_WITH_APPS_VERSION_NAME := true
+# We might want to skip items listed in PRODUCT_COPY_FILES based on
+# various target flags. This is useful for replacing a binary module with one
+# built from source. This should be a list of destination files under $OUT
+#
+TARGET_COPY_FILES_OVERRIDES := \
+    $(addprefix %:, $(strip $(TARGET_COPY_FILES_OVERRIDES)))
+
+ifneq ($(TARGET_COPY_FILES_OVERRIDES),)
+    PRODUCT_COPY_FILES := $(filter-out $(TARGET_COPY_FILES_OVERRIDES), $(PRODUCT_COPY_FILES))
 endif
 
-ifdef TARGET_BUILD_WITH_APPS_VERSION_NAME
-APPS_DEFAULT_VERSION_NAME := $(PLATFORM_VERSION)-$(BUILD_NUMBER_FROM_FILE)
-else
-APPS_DEFAULT_VERSION_NAME := $(PLATFORM_VERSION)
+ifneq ($(CM_BUILD),)
+## We need to be sure the global selinux policies are included
+## last, to avoid accidental resetting by device configs
+$(eval include vendor/cm/sepolicy/sepolicy.mk)
+
+# Include any vendor specific config.mk file
+-include $(TOPDIR)vendor/*/build/core/config.mk
+
+# Include any vendor specific apicheck.mk file
+-include $(TOPDIR)vendor/*/build/core/apicheck.mk
+
 endif
-
-# ANDROID_WARNING_ALLOWED_PROJECTS is generated by build/soong.
-define find_warning_allowed_projects
-    $(filter $(ANDROID_WARNING_ALLOWED_PROJECTS),$(1)/)
-endef
-
-# These goals don't need to collect and include Android.mks/CleanSpec.mks
-# in the source tree.
-dont_bother_goals := out \
-    snod systemimage-nodeps \
-    stnod systemtarball-nodeps \
-    userdataimage-nodeps userdatatarball-nodeps \
-    cacheimage-nodeps \
-    bptimage-nodeps \
-    vnod vendorimage-nodeps \
-    pnod productimage-nodeps \
-    systemotherimage-nodeps \
-    ramdisk-nodeps \
-    bootimage-nodeps \
-    recoveryimage-nodeps \
-    vbmetaimage-nodeps \
-    product-graph dump-products
-
-ifeq ($(CALLED_FROM_SETUP),true)
-include $(BUILD_SYSTEM)/ninja_config.mk
-include $(BUILD_SYSTEM)/soong_config.mk
-endif
-
-# Rules for QCOM targets
-include $(TOPDIR)vendor/omni/build/core/qcom_target.mk
 
 include $(BUILD_SYSTEM)/dumpvar.mk

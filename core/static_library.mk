@@ -1,4 +1,3 @@
-$(call record-module-type,STATIC_LIBRARY)
 my_prefix := TARGET_
 include $(BUILD_SYSTEM)/multilib.mk
 
@@ -7,11 +6,7 @@ ifndef my_module_multilib
 my_module_multilib := both
 endif
 
-ifeq ($(LOCAL_SDCLANG),true)
-include $(SDCLANG_FLAG_DEFS)
-endif
-
-ifeq ($(LOCAL_SDCLANG_2),true)
+ifeq ($(LOCAL_SDCLANG), true)
 include $(SDCLANG_FLAG_DEFS)
 endif
 
@@ -42,14 +37,8 @@ LOCAL_2ND_ARCH_VAR_PREFIX :=
 
 endif # TARGET_2ND_ARCH
 
-ifeq ($(LOCAL_SDCLANG),true)
-ifeq ($(LOCAL_SDCLANG_LTO),true)
-include $(SDCLANG_LTO_DEFS)
-endif
-endif
-
-ifeq ($(LOCAL_SDCLANG_2),true)
-ifeq ($(LOCAL_SDCLANG_LTO),true)
+ifeq ($(LOCAL_SDCLANG), true)
+ifeq ($(LOCAL_SDCLANG_LTO), true)
 include $(SDCLANG_LTO_DEFS)
 endif
 endif

@@ -16,12 +16,6 @@
 # Note that components added here will be also shared in PDK. Components
 # that should not be in PDK should be added in lower level like core.mk.
 
-ifeq ($(AOSP_SOUND_CONFIG),true)
-PRODUCT_PROPERTY_OVERRIDES := \
-    ro.config.notification_sound=OnTheHunt.ogg \
-    ro.config.alarm_alert=Alarm_Classic.ogg
-endif
-
 PRODUCT_PACKAGES += \
     ContactsProvider \
     DefaultContainerService \
@@ -44,7 +38,6 @@ PRODUCT_PACKAGES += \
     libstagefright_soft_amrwbenc \
     libstagefright_soft_avcdec \
     libstagefright_soft_avcenc \
-    libstagefright_soft_flacdec \
     libstagefright_soft_flacenc \
     libstagefright_soft_g711dec \
     libstagefright_soft_gsmdec \
@@ -62,5 +55,6 @@ PRODUCT_PACKAGES += \
     libwebrtc_audio_preprocessing \
     mdnsd \
     requestsync \
+    wifi-service
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_minimal.mk)

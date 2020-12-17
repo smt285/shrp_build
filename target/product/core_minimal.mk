@@ -24,7 +24,6 @@ PRODUCT_NAME := core
 
 PRODUCT_PACKAGES += \
     BackupRestoreConfirmation \
-    CompanionDeviceManager \
     CtsShimPrebuilt \
     CtsShimPrivPrebuilt \
     DownloadProvider \
@@ -33,13 +32,10 @@ PRODUCT_PACKAGES += \
     HTMLViewer \
     MediaProvider \
     PackageInstaller \
-    SecureElement \
     SettingsProvider \
     Shell \
     StatementService \
     WallpaperBackup \
-    android.hidl.base-V1.0-java \
-    android.hidl.manager-V1.0-java \
     bcc \
     bu \
     com.android.future.usb.accessory \
@@ -61,9 +57,9 @@ PRODUCT_PACKAGES += \
     iptables \
     gatekeeperd \
     keystore \
-    ld.config.txt \
+    keystore.default \
     ld.mc \
-    libaaudio \
+    libbcc \
     libOpenMAXAL \
     libOpenSLES \
     libdownmix \
@@ -72,83 +68,54 @@ PRODUCT_PACKAGES += \
     libfilterfw \
     libkeystore \
     libgatekeeper \
-    libneuralnetworks \
-    libwebviewchromium_loader \
-    libwebviewchromium_plat_support \
     libwilhelm \
     logd \
-    mke2fs \
+    make_ext4fs \
     e2fsck \
     resize2fs \
-    tune2fs \
     screencap \
     sensorservice \
     telephony-common \
     uiautomator \
     uncrypt \
-    vndk_snapshot_package \
     voip-common \
     webview \
-    webview_zygote \
-
-# Wifi modules
-PRODUCT_PACKAGES += \
-    wifi-service \
-    wificond \
+    wifi-service
 
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.software.webview.xml:system/etc/permissions/android.software.webview.xml
 
-ifneq (REL,$(PLATFORM_VERSION_CODENAME))
-PRODUCT_COPY_FILES += \
-    frameworks/native/data/etc/android.software.preview_sdk.xml:system/etc/permissions/android.software.preview_sdk.xml
-endif
-
-ifeq ($(TARGET_CORE_JARS),)
-$(error TARGET_CORE_JARS is empty; cannot initialize PRODUCT_BOOT_JARS variable)
-endif
-
 # The order of PRODUCT_BOOT_JARS matters.
 PRODUCT_BOOT_JARS := \
-    $(TARGET_CORE_JARS) \
+    core-oj \
+    core-libart \
+    conscrypt \
+    okhttp \
+    core-junit \
+    bouncycastle \
     ext \
     framework \
     telephony-common \
     voip-common \
     ims-common \
-    android.hidl.base-V1.0-java \
-    android.hidl.manager-V1.0-java
-
-ifeq ($(REMOVE_OAHL_FROM_BCP),true)
-PRODUCT_BOOT_JARS += framework-oahl-backward-compatibility
-else
-PRODUCT_BOOT_JARS += org.apache.http.legacy.boot
-endif
-
-ifeq ($(REMOVE_ATB_FROM_BCP),true)
-PRODUCT_BOOT_JARS += framework-atb-backward-compatibility
-else
-PRODUCT_BOOT_JARS += android.test.base
-endif
+    apache-xml \
+    org.apache.http.legacy.boot
 
 # The order of PRODUCT_SYSTEM_SERVER_JARS matters.
+ifneq ($(TARGET_DISABLE_CMSDK), true)
 PRODUCT_SYSTEM_SERVER_JARS := \
+    org.cyanogenmod.platform \
+    org.cyanogenmod.hardware
+endif
+PRODUCT_SYSTEM_SERVER_JARS += \
     services \
     ethernet-service \
-    wifi-service \
-    com.android.location.provider \
+    wifi-service
 
-# The set of packages whose code can be loaded by the system server.
-PRODUCT_SYSTEM_SERVER_APPS += \
-    SettingsProvider \
-    WallpaperBackup
-
-# Adoptable external storage supports both ext4 and f2fs
+# Adoptable external storage f2fs support
 PRODUCT_PACKAGES += \
-    e2fsck \
-    mke2fs \
     fsck.f2fs \
-    make_f2fs \
+    mkfs.f2fs \
 
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
     ro.zygote=zygote32
@@ -158,27 +125,30 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
     system/core/rootdir/etc/public.libraries.android.txt:system/etc/public.libraries.txt
 
+# Different dexopt types for different package update/install times.
+# On eng builds, make "boot" reasons do pure JIT for faster turnaround.
+ifeq (eng,$(TARGET_BUILD_VARIANT))
+    PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+        pm.dexopt.first-boot=verify-at-runtime \
+        pm.dexopt.boot=verify-at-runtime
+else
+    PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+        pm.dexopt.first-boot=interpret-only \
+        pm.dexopt.boot=verify-profile
+endif
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+    pm.dexopt.install=interpret-only \
+    pm.dexopt.bg-dexopt=speed-profile \
+    pm.dexopt.ab-ota=speed-profile \
+    pm.dexopt.nsys-library=speed \
+    pm.dexopt.shared-apk=speed \
+    pm.dexopt.forced-dexopt=speed \
+    pm.dexopt.core-app=speed
+
+
 # Enable boot.oat filtering of compiled classes to reduce boot.oat size. b/28026683
 PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
-    frameworks/base/config/compiled-classes-phone:system/etc/compiled-classes)
-
-# Enable dirty image object binning to reduce dirty pages in the image.
-PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
-    frameworks/base/dirty-image-objects-phone:system/etc/dirty-image-objects)
-
-# On userdebug builds, collect more tombstones by default.
-ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    tombstoned.max_tombstone_count=50
-endif
-
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
-    ro.logd.size.stats=64K \
-    log.tag.stats_log=I
+    frameworks/base/compiled-classes-phone:system/etc/compiled-classes)
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/runtime_libart.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/base.mk)
-
-# Enable CFI for security-sensitive components
-$(call inherit-product, $(SRC_TARGET_DIR)/product/cfi-common.mk)
-$(call inherit-product-if-exists, vendor/google/products/cfi-vendor.mk)
